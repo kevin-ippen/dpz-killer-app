@@ -74,30 +74,25 @@ class DatabricksRepository:
                     access_token=settings.DATABRICKS_TOKEN
                 )
             elif settings.DATABRICKS_HTTP_PATH:
-                # Use WorkspaceClient to get credentials (Databricks Apps service principal)
-                logger.info("Connecting to Databricks SQL warehouse with WorkspaceClient default credentials")
+                # Use default credentials (Databricks Apps service principal)
+                # The SQL connector will automatically discover credentials from the environment
+                logger.info("Connecting to Databricks SQL warehouse with default authentication")
+
+                # When running in Databricks Apps, we can use WorkspaceClient to get the host
                 ws = self._get_workspace_client()
-
-                # Extract credentials from WorkspaceClient config
                 host = ws.config.host
+
                 if not host:
-                    raise ValueError("Unable to determine Databricks host from WorkspaceClient")
+                    raise ValueError("Unable to determine Databricks host from environment")
 
-                # Get token from WorkspaceClient
-                token = ws.config.token
-                if callable(token):
-                    token = token()
+                logger.info(f"Connecting to host: {host}")
 
-                if not token:
-                    raise ValueError("Unable to obtain access token from WorkspaceClient")
-
-                logger.info(f"Using host from WorkspaceClient: {host}")
-
-                # Connect using credentials from WorkspaceClient
+                # Use default authentication - SQL connector will discover credentials automatically
+                # In Databricks Apps, this uses the service principal authentication
                 self.connection = sql.connect(
                     server_hostname=host,
                     http_path=settings.DATABRICKS_HTTP_PATH,
-                    access_token=token
+                    # Don't pass access_token - let connector use default auth
                 )
             else:
                 raise ValueError(

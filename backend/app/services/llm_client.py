@@ -96,7 +96,29 @@ class LLMClient:
             if response.choices and len(response.choices) > 0:
                 choice = response.choices[0]
                 if choice.message and choice.message.content:
-                    return choice.message.content
+                    content = choice.message.content
+
+                    # Handle reasoning model response (list of content blocks)
+                    if isinstance(content, list):
+                        # Extract text from content blocks
+                        text_parts = []
+                        for block in content:
+                            if isinstance(block, dict):
+                                # Look for 'text' field in the block
+                                if 'text' in block:
+                                    text_parts.append(block['text'])
+                                # Or 'content' field
+                                elif 'content' in block:
+                                    text_parts.append(block['content'])
+
+                        if text_parts:
+                            return '\n\n'.join(text_parts)
+                        else:
+                            logger.error(f"Could not extract text from content blocks: {content}")
+                            return "Sorry, I received an unexpected response format from the model."
+
+                    # Simple string response
+                    return content
                 else:
                     logger.error("Response choice has no message content")
                     return "Sorry, the model returned an empty response."
