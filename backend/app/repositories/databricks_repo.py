@@ -74,25 +74,38 @@ class DatabricksRepository:
                     access_token=settings.DATABRICKS_TOKEN
                 )
             elif settings.DATABRICKS_HTTP_PATH:
-                # Use default credentials (Databricks Apps service principal)
-                # The SQL connector will automatically discover credentials from the environment
-                logger.info("Connecting to Databricks SQL warehouse with default authentication")
+                # Use WorkspaceClient to get credentials (Databricks Apps service principal)
+                logger.info("Connecting to Databricks SQL warehouse with WorkspaceClient credentials")
 
-                # When running in Databricks Apps, we can use WorkspaceClient to get the host
                 ws = self._get_workspace_client()
-                host = ws.config.host
 
+                # Get credentials from WorkspaceClient's auth provider
+                # Use the same auth that the SDK uses
+                credentials_provider = ws.config.credentials_provider
+                if not credentials_provider:
+                    raise ValueError("Unable to get credentials provider from WorkspaceClient")
+
+                # Get headers which includes the authorization token
+                headers = credentials_provider.auth_headers()
+                auth_header = headers.get("Authorization", "")
+
+                # Extract token from "Bearer <token>" format
+                if auth_header.startswith("Bearer "):
+                    token = auth_header[7:]  # Remove "Bearer " prefix
+                else:
+                    raise ValueError("Unable to extract token from authorization header")
+
+                host = ws.config.host
                 if not host:
-                    raise ValueError("Unable to determine Databricks host from environment")
+                    raise ValueError("Unable to determine Databricks host from WorkspaceClient")
 
                 logger.info(f"Connecting to host: {host}")
 
-                # Use default authentication - SQL connector will discover credentials automatically
-                # In Databricks Apps, this uses the service principal authentication
+                # Connect with explicit credentials from WorkspaceClient
                 self.connection = sql.connect(
                     server_hostname=host,
                     http_path=settings.DATABRICKS_HTTP_PATH,
-                    # Don't pass access_token - let connector use default auth
+                    access_token=token
                 )
             else:
                 raise ValueError(

@@ -86,20 +86,15 @@ class LLMClient:
 
             logger.info(f"Sending chat completion request to endpoint: {self.model_name}")
 
-            # Build query parameters
-            query_params = {
-                "name": self.model_name,
-                "messages": sdk_messages,
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-            }
-
-            # Add reasoning_effort for reasoning models (databricks-gpt-oss-120b)
-            if reasoning_effort:
-                query_params["extra_params"] = {"reasoning_effort": reasoning_effort}
-
             # Use SDK's query method which handles auth automatically
-            response = ws.serving_endpoints.query(**query_params)
+            # Note: reasoning_effort parameter not yet supported in SDK query() method
+            # TODO: Add reasoning_effort support when SDK is updated
+            response = ws.serving_endpoints.query(
+                name=self.model_name,
+                messages=sdk_messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
 
             # Extract content from response
             if response.choices and len(response.choices) > 0:
