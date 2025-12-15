@@ -19,6 +19,7 @@ interface BarChartProps {
   colors?: string[];
   format?: "currency" | "number";
   stacked?: boolean;
+  isLoading?: boolean;
 }
 
 const defaultColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
@@ -31,6 +32,7 @@ export function BarChart({
   colors = defaultColors,
   format = "number",
   stacked = false,
+  isLoading = false,
 }: BarChartProps) {
   const formatValue = (value: number) => {
     if (format === "currency") {
@@ -45,8 +47,13 @@ export function BarChart({
         <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <RechartsBarChart data={data}>
+        {isLoading ? (
+          <div className="flex items-center justify-center h-[300px]">
+            <div className="animate-pulse text-gray-400">Loading...</div>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <RechartsBarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
               dataKey={xKey}
@@ -78,6 +85,7 @@ export function BarChart({
             ))}
           </RechartsBarChart>
         </ResponsiveContainer>
+        )}
       </CardContent>
     </Card>
   );

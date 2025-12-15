@@ -18,6 +18,7 @@ interface LineChartProps {
   yKeys: string[];
   colors?: string[];
   format?: "currency" | "number";
+  isLoading?: boolean;
 }
 
 const defaultColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
@@ -29,6 +30,7 @@ export function LineChart({
   yKeys,
   colors = defaultColors,
   format = "number",
+  isLoading = false,
 }: LineChartProps) {
   const formatValue = (value: number) => {
     if (format === "currency") {
@@ -43,8 +45,13 @@ export function LineChart({
         <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <RechartsLineChart data={data}>
+        {isLoading ? (
+          <div className="flex items-center justify-center h-[300px]">
+            <div className="animate-pulse text-gray-400">Loading...</div>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <RechartsLineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
               dataKey={xKey}
@@ -78,6 +85,7 @@ export function LineChart({
             ))}
           </RechartsLineChart>
         </ResponsiveContainer>
+        )}
       </CardContent>
     </Card>
   );
