@@ -407,23 +407,28 @@ export function Dashboard() {
 
                 {/* Channel metrics grid */}
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  {channelBreakdown?.map((ch) => (
-                    <Card key={ch.channel}>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium">
-                          {ch.channel}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold">
-                          ${(ch.revenue / 1000).toFixed(0)}K
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {((ch.revenue / (channelBreakdown.reduce((sum, item) => sum + item.revenue, 0))) * 100).toFixed(1)}% of total
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ))}
+                  {channelBreakdown?.map((ch) => {
+                    const totalRevenue = channelBreakdown.reduce((sum, item) => sum + (item?.revenue || 0), 0);
+                    const percentage = totalRevenue > 0 ? ((ch.revenue / totalRevenue) * 100).toFixed(1) : '0.0';
+
+                    return (
+                      <Card key={ch.channel}>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm font-medium">
+                            {ch.channel}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">
+                            ${((ch?.revenue || 0) / 1000).toFixed(0)}K
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {percentage}% of total
+                          </p>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
             </CardContent>
@@ -458,13 +463,13 @@ export function Dashboard() {
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold">
-                        ${item.arpu.toLocaleString()}
+                        ${(item?.arpu || 0).toLocaleString()}
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
-                        {item.customer_count.toLocaleString()} customers
+                        {(item?.customer_count || 0).toLocaleString()} customers
                       </p>
                       <p className="text-xs text-gray-400">
-                        {item.avg_orders_per_customer.toFixed(1)} orders/year
+                        {(item?.avg_orders_per_customer || 0).toFixed(1)} orders/year
                       </p>
                     </CardContent>
                   </Card>
@@ -495,25 +500,25 @@ export function Dashboard() {
                   <div className="p-4 bg-blue-50 rounded-lg">
                     <p className="text-sm text-gray-600">Avg GMV</p>
                     <p className="text-2xl font-bold text-blue-600">
-                      ${(gmvTrend.reduce((sum, item) => sum + item.gmv, 0) / gmvTrend.length / 1000000).toFixed(1)}M
+                      ${(gmvTrend.reduce((sum, item) => sum + (item?.gmv || 0), 0) / gmvTrend.length / 1000000).toFixed(1)}M
                     </p>
                   </div>
                   <div className="p-4 bg-green-50 rounded-lg">
                     <p className="text-sm text-gray-600">Avg Net Revenue</p>
                     <p className="text-2xl font-bold text-green-600">
-                      ${(gmvTrend.reduce((sum, item) => sum + item.net_revenue, 0) / gmvTrend.length / 1000000).toFixed(1)}M
+                      ${(gmvTrend.reduce((sum, item) => sum + (item?.net_revenue || 0), 0) / gmvTrend.length / 1000000).toFixed(1)}M
                     </p>
                   </div>
                   <div className="p-4 bg-orange-50 rounded-lg">
                     <p className="text-sm text-gray-600">Avg Discount Rate</p>
                     <p className="text-2xl font-bold text-orange-600">
-                      {(gmvTrend.reduce((sum, item) => sum + item.discount_rate_pct, 0) / gmvTrend.length).toFixed(1)}%
+                      {(gmvTrend.reduce((sum, item) => sum + (item?.discount_rate_pct || 0), 0) / gmvTrend.length).toFixed(1)}%
                     </p>
                   </div>
                   <div className="p-4 bg-purple-50 rounded-lg">
                     <p className="text-sm text-gray-600">Total Orders</p>
                     <p className="text-2xl font-bold text-purple-600">
-                      {(gmvTrend.reduce((sum, item) => sum + item.order_count, 0) / 1000000).toFixed(1)}M
+                      {(gmvTrend.reduce((sum, item) => sum + (item?.order_count || 0), 0) / 1000000).toFixed(1)}M
                     </p>
                   </div>
                 </div>
