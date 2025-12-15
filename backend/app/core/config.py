@@ -41,9 +41,9 @@ class Settings(BaseSettings):
     # UC Volumes for file storage (images, documents, etc.)
     # Example: IMAGES_VOLUME_PATH: str = "/Volumes/main/default/files/"
 
-    # Model Serving Endpoints (optional)
-    # Example: EMBEDDING_ENDPOINT: Optional[str] = os.getenv("EMBEDDING_ENDPOINT")
-    # Example: LLM_ENDPOINT: Optional[str] = os.getenv("LLM_ENDPOINT")
+    # Model Serving Endpoints
+    LLM_ENDPOINT: Optional[str] = os.getenv("LLM_ENDPOINT")
+    LLM_MODEL_NAME: Optional[str] = os.getenv("LLM_MODEL_NAME", "databricks-gpt-oss-120b")
 
     # API Configuration
     API_PREFIX: str = "/api"  # Required for Databricks Apps OAuth2

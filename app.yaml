@@ -27,6 +27,11 @@ resources:
       securable_full_name: main.dominos_realistic
       privilege: SELECT
 
+    # Grant access to LLM serving endpoint
+    - securable_type: SERVING_ENDPOINT
+      securable_full_name: databricks-gpt-oss-120b
+      privilege: EXECUTE
+
 # Environment variables
 # Databricks auto-injects these variables for authentication
 env:
@@ -40,3 +45,7 @@ env:
     value: main
   - name: SCHEMA
     value: dominos_analytics
+  - name: LLM_ENDPOINT
+    value: https://adb-984752964297111.11.azuredatabricks.net/serving-endpoints/databricks-gpt-oss-120b/invocations
+  - name: LLM_MODEL_NAME
+    value: databricks-gpt-oss-120b

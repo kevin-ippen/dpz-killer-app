@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChatContainer } from "@/components/chat/ChatContainer";
 import { generateId } from "@/lib/utils";
+import { chatApi } from "@/api/client";
 
 interface Message {
   id: string;
@@ -12,6 +13,7 @@ interface Message {
 export function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<string | undefined>();
 
   const handleSendMessage = async (content: string) => {
     // Add user message
@@ -26,20 +28,34 @@ export function Chat() {
     setIsLoading(true);
 
     try {
-      // TODO: Replace with actual API call to LLM endpoint
-      // For now, simulate a response
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Call the real API with LLM endpoint
+      const response = await chatApi.query(content, conversationId);
+
+      // Update conversation ID if we got one back
+      if (response.conversation_id) {
+        setConversationId(response.conversation_id);
+      }
 
       const assistantMessage: Message = {
         id: generateId(),
         role: "assistant",
-        content: `This is a placeholder response. The LLM endpoint will be connected later. You asked: "${content}"`,
+        content: response.message,
         timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
       console.error("Error sending message:", error);
+
+      // Show error message to user
+      const errorMessage: Message = {
+        id: generateId(),
+        role: "assistant",
+        content: "Sorry, I encountered an error processing your request. Please try again.",
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }

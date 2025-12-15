@@ -1,15 +1,15 @@
 """
 Chat API routes for natural language analytics queries
 
-This module provides endpoints for the chat interface. Currently uses a
-placeholder LLM endpoint - will be replaced with Databricks Genie or
-multi-agent system in the future.
+This module provides endpoints for the chat interface using the
+databricks-gpt-oss-120b model serving endpoint.
 """
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import logging
 from datetime import datetime
+from app.services.llm_client import llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -48,82 +48,129 @@ class ChatResponse(BaseModel):
 @router.post("/query", response_model=ChatResponse)
 async def chat_query(request: ChatRequest):
     """
-    Process a natural language query and return a response
+    Process a natural language query and return a response using LLM
 
-    This is a placeholder endpoint that will be replaced with:
-    - Databricks Genie for natural language to SQL
-    - Multi-agent orchestration for complex queries
-    - Claude/GPT-4 for conversational responses
+    Uses the databricks-gpt-oss-120b model serving endpoint to generate
+    intelligent responses to analytics questions.
 
     Args:
-        request: Chat request with user message
+        request: Chat request with user message and optional conversation context
 
     Returns:
-        Chat response with assistant message
+        Chat response with LLM-generated message
     """
     try:
-        user_message = request.message.lower()
+        # Check if LLM is configured
+        if not llm_client.endpoint:
+            logger.warning("LLM endpoint not configured, using fallback")
+            return _fallback_response(request)
 
-        # Simple keyword-based responses (placeholder)
-        if "revenue" in user_message:
-            response_text = """Based on your query about revenue:
+        # Generate response using LLM
+        try:
+            response_text = await llm_client.generate_analytics_response(
+                user_query=request.message
+            )
+        except Exception as llm_error:
+            logger.error(f"LLM call failed: {llm_error}", exc_info=True)
+            # Fall back to simple response if LLM fails
+            return _fallback_response(request)
+
+        # Generate contextual suggestions
+        suggestions = _generate_suggestions(request.message)
+
+        return ChatResponse(
+            message=response_text,
+            conversation_id=request.conversation_id or f"conv-{datetime.now().timestamp()}",
+            suggestions=suggestions
+        )
+
+    except Exception as e:
+        logger.error(f"Error processing chat query: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _fallback_response(request: ChatRequest) -> ChatResponse:
+    """
+    Fallback response when LLM is not available
+
+    Provides basic keyword-based responses as a backup.
+    """
+    user_message = request.message.lower()
+
+    if "revenue" in user_message:
+        response_text = """Based on your query about revenue:
 
 - **Total Revenue (Last 6 Months)**: $6.12M
 - **Month-over-Month Growth**: +12.5%
-- **Best Performing Channel**: Mobile App ($450K)
+- **Best Performing Channel**: Mobile App
 
-The revenue trend shows strong growth, particularly in the Mobile App channel. Would you like me to break this down by region or product category?"""
+Would you like me to break this down by region or product category?"""
 
-        elif "orders" in user_message or "sales" in user_message:
-            response_text = """Here's what I found about orders:
+    elif "orders" in user_message or "sales" in user_message:
+        response_text = """Here's what I found about orders:
 
 - **Total Orders (Last 6 Months)**: 86,800
 - **Average Order Value**: $27.45
 - **Peak Order Time**: 6-8 PM (35% of daily orders)
 
-Orders have grown by 8.3% compared to the previous period. Would you like to see the hourly distribution or top-selling products?"""
+Would you like to see the hourly distribution or top-selling products?"""
 
-        elif "store" in user_message or "location" in user_message:
-            response_text = """Store performance analysis:
+    else:
+        response_text = f"""I can help you analyze your Domino's data.
 
-- **Top Store**: Store #042 - $125K revenue
-- **Average Store Revenue**: $87K
-- **Stores Above Average**: 245 out of 500
-
-Would you like me to show you a geographic breakdown or identify underperforming stores?"""
-
-        else:
-            response_text = f"""I understand you're asking: "{request.message}"
-
-This is a placeholder response. The full LLM endpoint will:
-- Interpret your natural language query
-- Query the dominos_analytics semantic layer
-- Generate insights and visualizations
-
-Example queries you can try:
+Try asking questions like:
 - "What's our total revenue?"
 - "Show me top stores by sales"
 - "What are peak order times?"
-- "Compare this month vs last month"
-"""
+- "Compare Mobile App vs Online channel"
 
-        # Generate some suggestions
-        suggestions = [
+Note: LLM endpoint not configured. Using basic responses."""
+
+    return ChatResponse(
+        message=response_text,
+        conversation_id=request.conversation_id or "fallback-001",
+        suggestions=_generate_suggestions(request.message)
+    )
+
+
+def _generate_suggestions(user_message: str) -> List[str]:
+    """
+    Generate contextual follow-up suggestions based on the user's query
+
+    Args:
+        user_message: The user's original message
+
+    Returns:
+        List of suggested follow-up queries
+    """
+    message_lower = user_message.lower()
+
+    if "revenue" in message_lower:
+        return [
+            "Show revenue by channel",
+            "Compare revenue to last quarter",
+            "What's driving revenue growth?",
+        ]
+    elif "orders" in message_lower:
+        return [
+            "Show order trends by hour",
+            "What's the average order value?",
+            "Compare orders by channel",
+        ]
+    elif "store" in message_lower or "location" in message_lower:
+        return [
+            "Show top 10 stores",
+            "Which stores are underperforming?",
+            "Show store performance by region",
+        ]
+    else:
+        # Default suggestions
+        return [
             "Show revenue by channel",
             "What are the top 10 stores?",
             "Compare this quarter to last quarter",
-            "Show customer retention rate"
+            "Show customer retention rate",
         ]
-
-        return ChatResponse(
-            message=response_text,
-            conversation_id=request.conversation_id or "demo-conversation-001",
-            suggestions=suggestions
-        )
-
-    except Exception as e:
-        logger.error(f"Error processing chat query: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/suggestions")

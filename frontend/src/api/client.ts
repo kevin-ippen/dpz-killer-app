@@ -102,4 +102,79 @@ export const itemsApi = {
   },
 };
 
+/**
+ * Chat API
+ *
+ * Endpoints for the chat interface with LLM
+ */
+export const chatApi = {
+  /**
+   * Send a chat message and get LLM response
+   */
+  query: async (message: string, conversationId?: string): Promise<{
+    message: string;
+    conversation_id: string;
+    suggestions?: string[];
+  }> => {
+    const response = await apiClient.post('/chat/query', {
+      message,
+      conversation_id: conversationId,
+    });
+    return response.data;
+  },
+
+  /**
+   * Get suggested starter queries
+   */
+  getSuggestions: async (): Promise<{ suggestions: string[] }> => {
+    const response = await apiClient.get('/chat/suggestions');
+    return response.data;
+  },
+};
+
+/**
+ * Metrics API
+ *
+ * Endpoints for dashboard metrics and analytics
+ */
+export const metricsApi = {
+  /**
+   * Get dashboard summary metrics
+   */
+  getSummary: async (): Promise<{
+    total_revenue: number;
+    total_orders: number;
+    avg_order_value: number;
+    customer_satisfaction: number;
+  }> => {
+    const response = await apiClient.get('/metrics/summary');
+    return response.data;
+  },
+
+  /**
+   * Get revenue trend data
+   */
+  getRevenueTrend: async (months: number = 6): Promise<Array<{
+    month: string;
+    revenue: number;
+    orders: number;
+  }>> => {
+    const response = await apiClient.get('/metrics/revenue-trend', {
+      params: { months },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get channel breakdown
+   */
+  getChannelBreakdown: async (): Promise<Array<{
+    channel: string;
+    revenue: number;
+  }>> => {
+    const response = await apiClient.get('/metrics/channel-breakdown');
+    return response.data;
+  },
+};
+
 export default apiClient;
