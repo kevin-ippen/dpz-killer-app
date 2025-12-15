@@ -170,7 +170,7 @@ if os.path.exists(frontend_dist):
 
     # Serve index.html for all non-API routes (SPA routing)
     # This MUST be defined last, after all API routes
-    @app.get("/{full_path:path}", include_in_schema=False, priority=-1)
+    @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_frontend(full_path: str = ""):
         """
         Serve React app for all non-API routes
