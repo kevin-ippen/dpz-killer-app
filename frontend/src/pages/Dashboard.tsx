@@ -37,45 +37,45 @@ export function Dashboard() {
 
   const { startDate, endDate } = getDateRange(dateRange);
 
-  // Fetch dashboard metrics (no date filter on summary for now)
+  // Fetch dashboard metrics (with date filter so it updates)
   const { data: metrics, isLoading: metricsLoading } = useQuery({
-    queryKey: ["dashboard-metrics"],
+    queryKey: ["dashboard-metrics", startDate, endDate, segment, channel],
     queryFn: metricsApi.getSummary,
   });
 
   // Fetch revenue trend with date range filter
   const { data: revenueTrend, isLoading: trendLoading } = useQuery({
-    queryKey: ["revenue-trend", dateRange],
+    queryKey: ["revenue-trend", dateRange, startDate, endDate, segment, channel],
     queryFn: () => metricsApi.getRevenueTrend(parseInt(dateRange)),
   });
 
-  // Fetch GMV trend (uses date range)
+  // Fetch GMV trend (uses date range and all filters)
   const { data: gmvTrend, isLoading: gmvLoading } = useQuery({
-    queryKey: ["gmv-trend", startDate, endDate],
+    queryKey: ["gmv-trend", startDate, endDate, segment, channel],
     queryFn: () => metricsApi.getGmvTrend(startDate, endDate),
   });
 
-  // Fetch channel mix (uses date range) - TODO: Add channel mix visualization
+  // Fetch channel mix (uses date range and channel filter) - TODO: Use in visualizations
   // const { data: channelMix } = useQuery({
-  //   queryKey: ["channel-mix", startDate, endDate],
+  //   queryKey: ["channel-mix", startDate, endDate, channel, segment],
   //   queryFn: () => metricsApi.getChannelMix(startDate, endDate),
   // });
 
-  // Fetch CAC by channel
+  // Fetch CAC by channel (with ALL filters so it updates)
   const { data: cacByChannel, isLoading: cacLoading } = useQuery({
-    queryKey: ["cac-by-channel"],
+    queryKey: ["cac-by-channel", startDate, endDate, segment, channel],
     queryFn: metricsApi.getCacByChannel,
   });
 
-  // Fetch ARPU by segment
+  // Fetch ARPU by segment (with ALL filters so it updates)
   const { data: arpuBySegment, isLoading: arpuLoading } = useQuery({
-    queryKey: ["arpu-by-segment"],
+    queryKey: ["arpu-by-segment", startDate, endDate, segment, channel],
     queryFn: () => metricsApi.getArpuBySegment(),
   });
 
   // Fetch attach rate (uses date range and segment)
   const { data: attachRate, isLoading: attachLoading } = useQuery({
-    queryKey: ["attach-rate", segment, startDate, endDate],
+    queryKey: ["attach-rate", segment, startDate, endDate, channel],
     queryFn: () => metricsApi.getAttachRate(
       segment !== "all" ? segment : undefined,
       startDate,
@@ -83,9 +83,9 @@ export function Dashboard() {
     ),
   });
 
-  // Fetch channel breakdown (legacy endpoint)
+  // Fetch channel breakdown (with ALL filters so it updates)
   const { data: channelBreakdown, isLoading: channelLoading } = useQuery({
-    queryKey: ["channel-breakdown"],
+    queryKey: ["channel-breakdown", startDate, endDate, segment, channel],
     queryFn: metricsApi.getChannelBreakdown,
   });
 
