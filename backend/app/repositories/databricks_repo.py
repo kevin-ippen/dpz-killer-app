@@ -2,8 +2,8 @@
 Databricks Unity Catalog Repository
 
 This module provides a clean abstraction for accessing Unity Catalog tables
-via Databricks SQL Connector. It implements the repository pattern for
-separation of concerns between data access and business logic.
+via Databricks SDK's statement execution API. It implements the repository pattern
+for separation of concerns between data access and business logic.
 
 Usage:
     from app.repositories.databricks_repo import databricks_repo
@@ -15,8 +15,8 @@ Usage:
     data = databricks_repo.get_table_data("my_table", limit=100)
 """
 from typing import List, Optional, Dict, Any
-from databricks import sql
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.sql import StatementState
 from app.core.config import settings
 import logging
 
@@ -25,94 +25,39 @@ logger = logging.getLogger(__name__)
 
 class DatabricksRepository:
     """
-    Repository for accessing Unity Catalog tables via Databricks SQL
+    Repository for accessing Unity Catalog tables via Databricks SDK
 
-    This class manages the connection to Databricks SQL warehouse and provides
-    methods for executing queries against Unity Catalog tables.
+    This class uses the SDK's statement execution API which automatically
+    handles authentication using the same credentials as other SDK operations.
 
     Attributes:
         catalog: Unity Catalog catalog name
         schema: Unity Catalog schema name
-        connection: Active Databricks SQL connection (lazy-loaded)
+        workspace_client: WorkspaceClient instance (lazy-loaded)
+        warehouse_id: SQL warehouse ID extracted from http_path
     """
 
     def __init__(self):
         """Initialize repository with catalog and schema from settings"""
         self.catalog = settings.CATALOG
         self.schema = settings.SCHEMA
-        self.connection = None
         self._workspace_client = None
+
+        # Extract warehouse ID from http_path
+        # Format: /sql/1.0/warehouses/{warehouse_id}
+        if settings.DATABRICKS_HTTP_PATH:
+            self.warehouse_id = settings.DATABRICKS_HTTP_PATH.split('/')[-1]
+        else:
+            self.warehouse_id = None
 
     def _get_workspace_client(self) -> WorkspaceClient:
         """Get or create WorkspaceClient for authentication"""
         if not self._workspace_client:
-            logger.info("Initializing WorkspaceClient for default authentication")
+            logger.info("Initializing WorkspaceClient with default authentication")
+            # WorkspaceClient automatically discovers credentials from environment
+            # In Databricks Apps, it uses the service principal
             self._workspace_client = WorkspaceClient()
         return self._workspace_client
-
-    def _get_connection(self):
-        """
-        Get or create Databricks SQL connection
-
-        Connection is created lazily on first use and reused for subsequent queries.
-        Uses Databricks SDK's default credential provider which automatically
-        discovers credentials from environment (Databricks Apps service principal).
-
-        Returns:
-            Active Databricks SQL connection
-
-        Raises:
-            ValueError: If required Databricks credentials are not set
-        """
-        if self.connection is None:
-            # Try explicit credentials first (for local development)
-            if settings.DATABRICKS_HOST and settings.DATABRICKS_TOKEN and settings.DATABRICKS_HTTP_PATH:
-                logger.info(f"Connecting to Databricks SQL warehouse with explicit credentials: {settings.DATABRICKS_HOST}")
-                self.connection = sql.connect(
-                    server_hostname=settings.DATABRICKS_HOST,
-                    http_path=settings.DATABRICKS_HTTP_PATH,
-                    access_token=settings.DATABRICKS_TOKEN
-                )
-            elif settings.DATABRICKS_HTTP_PATH:
-                # Use WorkspaceClient to get credentials (Databricks Apps service principal)
-                logger.info("Connecting to Databricks SQL warehouse with WorkspaceClient credentials")
-
-                ws = self._get_workspace_client()
-
-                # Get credentials from WorkspaceClient's auth provider
-                # Use the same auth that the SDK uses
-                credentials_provider = ws.config.credentials_provider
-                if not credentials_provider:
-                    raise ValueError("Unable to get credentials provider from WorkspaceClient")
-
-                # Get headers which includes the authorization token
-                headers = credentials_provider.auth_headers()
-                auth_header = headers.get("Authorization", "")
-
-                # Extract token from "Bearer <token>" format
-                if auth_header.startswith("Bearer "):
-                    token = auth_header[7:]  # Remove "Bearer " prefix
-                else:
-                    raise ValueError("Unable to extract token from authorization header")
-
-                host = ws.config.host
-                if not host:
-                    raise ValueError("Unable to determine Databricks host from WorkspaceClient")
-
-                logger.info(f"Connecting to host: {host}")
-
-                # Connect with explicit credentials from WorkspaceClient
-                self.connection = sql.connect(
-                    server_hostname=host,
-                    http_path=settings.DATABRICKS_HTTP_PATH,
-                    access_token=token
-                )
-            else:
-                raise ValueError(
-                    "Missing Databricks credentials. Set DATABRICKS_HTTP_PATH at minimum. "
-                    "For local dev, also set DATABRICKS_HOST and DATABRICKS_TOKEN."
-                )
-        return self.connection
 
     def execute_query(
         self,
@@ -121,6 +66,8 @@ class DatabricksRepository:
     ) -> List[Dict[str, Any]]:
         """
         Execute a SQL query and return results as list of dictionaries
+
+        Uses SDK's statement execution API which handles auth automatically.
 
         Args:
             query: SQL query string (use :param_name for parameterized queries)
@@ -135,30 +82,68 @@ class DatabricksRepository:
                 {"id": "123"}
             )
         """
-        conn = self._get_connection()
-        cursor = conn.cursor()
+        if not self.warehouse_id:
+            raise ValueError("DATABRICKS_HTTP_PATH not configured")
 
         try:
-            logger.debug(f"Executing query: {query}")
-            cursor.execute(query, params or {})
+            # Replace named parameters with values (simple string substitution)
+            if params:
+                for key, value in params.items():
+                    # Basic SQL escaping
+                    if isinstance(value, str):
+                        escaped_value = value.replace("'", "''")
+                        query = query.replace(f":{key}", f"'{escaped_value}'")
+                    else:
+                        query = query.replace(f":{key}", str(value))
 
-            # Get column names from cursor description
-            columns = [desc[0] for desc in cursor.description]
+            logger.debug(f"Executing query: {query}")
+
+            ws = self._get_workspace_client()
+
+            # Execute statement using SDK (handles auth automatically)
+            statement = ws.statement_execution.execute_statement(
+                warehouse_id=self.warehouse_id,
+                statement=query,
+                catalog=self.catalog,
+                schema=self.schema
+            )
+
+            # Check if execution succeeded
+            if statement.status.state != StatementState.SUCCEEDED:
+                error_msg = f"Query failed with state: {statement.status.state}"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+
+            # Parse results
+            if not statement.result or not statement.result.data_array:
+                logger.debug("Query returned 0 rows")
+                return []
+
+            # Get column names
+            columns = [col.name for col in statement.manifest.schema.columns]
 
             # Convert rows to list of dicts
             results = []
-            for row in cursor.fetchall():
-                results.append(dict(zip(columns, row)))
+            for row in statement.result.data_array:
+                # Handle both list and object row formats
+                if isinstance(row, (list, tuple)):
+                    row_values = row
+                elif hasattr(row, 'values'):
+                    row_values = row.values
+                else:
+                    try:
+                        row_values = list(row)
+                    except:
+                        row_values = [row]
+
+                results.append(dict(zip(columns, row_values)))
 
             logger.debug(f"Query returned {len(results)} rows")
             return results
 
         except Exception as e:
-            logger.error(f"Query execution failed: {e}")
+            logger.error(f"Query execution failed: {e}", exc_info=True)
             raise
-
-        finally:
-            cursor.close()
 
     def get_table_data(
         self,
@@ -231,15 +216,15 @@ class DatabricksRepository:
 
     def close(self):
         """
-        Close the database connection
+        Clean up resources
 
-        Should be called during application shutdown.
-        Connection will be automatically recreated if needed after close.
+        The SDK's statement execution API doesn't maintain persistent connections,
+        so there's nothing to close. This method is kept for API compatibility.
         """
-        if self.connection:
-            logger.info("Closing Databricks SQL connection")
-            self.connection.close()
-            self.connection = None
+        # No persistent connection to close with statement execution API
+        # SDK handles connection lifecycle automatically
+        self._workspace_client = None
+        logger.info("Databricks repository resources cleaned up")
 
 
 # Global repository instance
