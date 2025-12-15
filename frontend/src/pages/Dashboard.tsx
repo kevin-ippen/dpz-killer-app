@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MetricCard } from "@/components/charts/MetricCard";
 import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
+import { ComboChart } from "@/components/charts/ComboChart";
 import { metricsApi } from "@/api/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Calendar } from "lucide-react";
+import { MetricTooltip } from "@/components/MetricTooltip";
+import { FilterPills } from "@/components/FilterPills";
+import { filterCompleteMonths, getDateRangeLabel } from "@/lib/utils";
 
 export function Dashboard() {
   // State for filters
@@ -22,6 +26,50 @@ export function Dashboard() {
   const [channel, setChannel] = useState<string>("all");
   const [segment, setSegment] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<string>("overview");
+
+  // Phase 3: Advanced filtering
+  const [timeGrain, setTimeGrain] = useState<string>("monthly");
+  const [comparisonMode, setComparisonMode] = useState<string>("none");
+  const [selectedPreset, setSelectedPreset] = useState<string>("none");
+
+  // Filter presets
+  const FILTER_PRESETS: Record<string, { dateRange: string; segment?: string; channel?: string; description: string }> = {
+    "q4-2024": {
+      dateRange: "3",
+      description: "Q4 2024 Performance",
+    },
+    "digital-only": {
+      dateRange: "6",
+      channel: "Mobile App",
+      description: "Digital Channels (6 months)",
+    },
+    "high-value": {
+      dateRange: "6",
+      segment: "Family",
+      description: "High-Value Customers",
+    },
+    "year-review": {
+      dateRange: "12",
+      description: "Annual Review",
+    },
+  };
+
+  const applyPreset = (presetKey: string) => {
+    if (presetKey === "none") {
+      setSelectedPreset("none");
+      return;
+    }
+
+    const preset = FILTER_PRESETS[presetKey];
+    if (preset) {
+      setDateRange(preset.dateRange);
+      if (preset.segment) setSegment(preset.segment);
+      else setSegment("all");
+      if (preset.channel) setChannel(preset.channel);
+      else setChannel("all");
+      setSelectedPreset(presetKey);
+    }
+  };
 
   // Calculate date range for API calls
   const getDateRange = (months: string) => {
@@ -94,6 +142,100 @@ export function Dashboard() {
     ? channelBreakdown
     : channelBreakdown?.filter((item) => item.channel === channel);
 
+  // Apply complete months filter to time-series data
+  const completeRevenueTrend = useMemo(() => {
+    if (!revenueTrend) return [];
+    return filterCompleteMonths(revenueTrend);
+  }, [revenueTrend]);
+
+  const completeGmvTrend = useMemo(() => {
+    if (!gmvTrend) return [];
+    return filterCompleteMonths(gmvTrend);
+  }, [gmvTrend]);
+
+  // Prepare active filters for FilterPills
+  const activeFilters = useMemo(() => {
+    const filters = [];
+
+    if (dateRange !== "6") {
+      filters.push({
+        key: "dateRange",
+        label: "Date Range",
+        value: getDateRangeLabel(dateRange),
+        isDefault: false,
+      });
+    }
+
+    if (segment !== "all") {
+      filters.push({
+        key: "segment",
+        label: "Segment",
+        value: segment,
+        isDefault: false,
+      });
+    }
+
+    if (channel !== "all") {
+      filters.push({
+        key: "channel",
+        label: "Channel",
+        value: channel,
+        isDefault: false,
+      });
+    }
+
+    if (timeGrain !== "monthly") {
+      filters.push({
+        key: "timeGrain",
+        label: "Time Grain",
+        value: timeGrain.charAt(0).toUpperCase() + timeGrain.slice(1),
+        isDefault: false,
+      });
+    }
+
+    if (comparisonMode !== "none") {
+      const comparisonLabels: Record<string, string> = {
+        "previous_period": "vs Previous Period",
+        "year_ago": "vs Year Ago",
+      };
+      filters.push({
+        key: "comparisonMode",
+        label: "Comparison",
+        value: comparisonLabels[comparisonMode] || comparisonMode,
+        isDefault: false,
+      });
+    }
+
+    if (selectedPreset !== "none") {
+      filters.push({
+        key: "preset",
+        label: "Preset",
+        value: FILTER_PRESETS[selectedPreset]?.description || selectedPreset,
+        isDefault: false,
+      });
+    }
+
+    return filters;
+  }, [dateRange, segment, channel, timeGrain, comparisonMode, selectedPreset, FILTER_PRESETS]);
+
+  const handleRemoveFilter = (key: string) => {
+    if (key === "dateRange") setDateRange("6");
+    if (key === "segment") setSegment("all");
+    if (key === "channel") setChannel("all");
+    if (key === "timeGrain") setTimeGrain("monthly");
+    if (key === "comparisonMode") setComparisonMode("none");
+    if (key === "preset") setSelectedPreset("none");
+  };
+
+  const handleClearAllFilters = () => {
+    setDateRange("6");
+    setSegment("all");
+    setChannel("all");
+    setTimeGrain("monthly");
+    setComparisonMode("none");
+    setSelectedPreset("none");
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -157,6 +299,71 @@ export function Dashboard() {
         </div>
       </div>
 
+      {/* Phase 3: Advanced Filters Row */}
+      <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
+        <div className="flex items-center gap-4 flex-wrap">
+          <span className="text-sm font-medium text-gray-700">Advanced Filters:</span>
+
+          {/* Time Grain Selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-600">Time Grain:</span>
+            <Select value={timeGrain} onValueChange={setTimeGrain}>
+              <SelectTrigger className="w-[140px] h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="weekly">Weekly</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+                <SelectItem value="quarterly">Quarterly</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Comparison Mode */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-600">Compare:</span>
+            <Select value={comparisonMode} onValueChange={setComparisonMode}>
+              <SelectTrigger className="w-[180px] h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No Comparison</SelectItem>
+                <SelectItem value="previous_period">vs Previous Period</SelectItem>
+                <SelectItem value="year_ago">vs Year Ago</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Preset Selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-600">Quick Preset:</span>
+            <Select value={selectedPreset} onValueChange={applyPreset}>
+              <SelectTrigger className="w-[200px] h-8 text-sm">
+                <SelectValue placeholder="Select a preset" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No Preset</SelectItem>
+                {Object.entries(FILTER_PRESETS).map(([key, preset]) => (
+                  <SelectItem key={key} value={key}>
+                    {preset.description}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* Active Filter Pills */}
+      {activeFilters.length > 0 && (
+        <FilterPills
+          filters={activeFilters}
+          onRemove={handleRemoveFilter}
+          onClearAll={handleClearAllFilters}
+        />
+      )}
+
       {/* Tabs for different views */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
@@ -172,30 +379,30 @@ export function Dashboard() {
           {/* KPI Metrics */}
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <MetricCard
-              label="Total Revenue"
+              label={<MetricTooltip term="REVENUE">Total Revenue</MetricTooltip>}
               value={metrics?.total_revenue || 0}
               format="currency"
               delta={{ value: 12.5, isPositive: true }}
-              sparkline={revenueTrend?.slice(-6).map((d) => d.revenue) || []}
+              sparkline={completeRevenueTrend?.slice(-6).map((d) => d.revenue) || []}
               loading={metricsLoading}
             />
             <MetricCard
-              label="Total Orders"
+              label={<MetricTooltip term="ORDERS">Total Orders</MetricTooltip>}
               value={metrics?.total_orders || 0}
               format="number"
               delta={{ value: 8.3, isPositive: true }}
-              sparkline={revenueTrend?.slice(-6).map((d) => d.orders) || []}
+              sparkline={completeRevenueTrend?.slice(-6).map((d) => d.orders) || []}
               loading={metricsLoading}
             />
             <MetricCard
-              label="Avg Order Value"
+              label={<MetricTooltip term="AOV">Avg Order Value</MetricTooltip>}
               value={metrics?.avg_order_value || 0}
               format="currency"
               delta={{ value: 3.2, isPositive: true }}
               loading={metricsLoading}
             />
             <MetricCard
-              label="Customer Satisfaction"
+              label={<MetricTooltip term="CSAT">Customer Satisfaction</MetricTooltip>}
               value={metrics?.customer_satisfaction || 0}
               format="number"
               delta={{ value: -1.5, isPositive: false }}
@@ -206,8 +413,8 @@ export function Dashboard() {
           {/* Trend Charts */}
           <div className="grid gap-6 lg:grid-cols-2">
             <LineChart
-              title="Revenue Trend"
-              data={revenueTrend || []}
+              title="Revenue Trend (Complete Months Only)"
+              data={completeRevenueTrend || []}
               xKey="month"
               yKeys={["revenue"]}
               colors={["#3b82f6"]}
@@ -215,8 +422,8 @@ export function Dashboard() {
               isLoading={trendLoading}
             />
             <LineChart
-              title="Orders Trend"
-              data={revenueTrend || []}
+              title="Orders Trend (Complete Months Only)"
+              data={completeRevenueTrend || []}
               xKey="month"
               yKeys={["orders"]}
               colors={["#10b981"]}
@@ -248,8 +455,8 @@ export function Dashboard() {
             <CardContent>
               <div className="grid gap-6 lg:grid-cols-2">
                 <LineChart
-                  title="Revenue vs Orders"
-                  data={revenueTrend || []}
+                  title="Revenue vs Orders (Complete Months)"
+                  data={completeRevenueTrend || []}
                   xKey="month"
                   yKeys={["revenue", "orders"]}
                   colors={["#3b82f6", "#10b981"]}
@@ -257,8 +464,8 @@ export function Dashboard() {
                   isLoading={trendLoading}
                 />
                 <BarChart
-                  title="Monthly Comparison"
-                  data={revenueTrend?.slice(-12) || []}
+                  title="Monthly Comparison (Complete Months)"
+                  data={completeRevenueTrend?.slice(-12) || []}
                   xKey="month"
                   yKeys={["revenue"]}
                   colors={["#8b5cf6"]}
@@ -305,18 +512,42 @@ export function Dashboard() {
         <TabsContent value="marketing" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Customer Acquisition Cost (CAC)</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <MetricTooltip term="CAC">Customer Acquisition Cost</MetricTooltip>
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <BarChart
-                title="CAC by Marketing Channel"
-                data={cacByChannel || []}
-                xKey="channel"
-                yKeys={["cac"]}
-                colors={["#f59e0b"]}
-                format="currency"
-                isLoading={cacLoading}
-              />
+              <div className="space-y-6">
+                <BarChart
+                  title="CAC by Marketing Channel"
+                  data={cacByChannel || []}
+                  xKey="channel"
+                  yKeys={["cac"]}
+                  colors={["#f59e0b"]}
+                  format="currency"
+                  isLoading={cacLoading}
+                />
+
+                {/* CAC Efficiency Overlay */}
+                <ComboChart
+                  title="CAC Efficiency: Cost vs Customer Acquisition"
+                  data={cacByChannel || []}
+                  xKey="channel"
+                  leftYAxis={{
+                    key: "cac",
+                    label: "CAC ($)",
+                    color: "#ef4444",
+                    type: "bar",
+                  }}
+                  rightYAxis={{
+                    key: "new_customers",
+                    label: "New Customers",
+                    color: "#10b981",
+                    type: "line",
+                  }}
+                  isLoading={cacLoading}
+                />
+              </div>
 
               {/* CAC metrics grid */}
               <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6 mt-6">
@@ -347,7 +578,9 @@ export function Dashboard() {
           {/* Attach Rates */}
           <Card>
             <CardHeader>
-              <CardTitle>Upsell Attach Rates</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <MetricTooltip term="ATTACH_RATE">Upsell Attach Rates</MetricTooltip>
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -440,7 +673,9 @@ export function Dashboard() {
         <TabsContent value="customers" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Average Revenue Per User (ARPU) by Segment</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <MetricTooltip term="ARPU">Average Revenue Per User (ARPU) by Segment</MetricTooltip>
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <BarChart
@@ -482,29 +717,53 @@ export function Dashboard() {
           {/* GMV Trend */}
           <Card>
             <CardHeader>
-              <CardTitle>Gross Merchandise Value (GMV) Trend</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <MetricTooltip term="GMV">Gross Merchandise Value (GMV) Trend</MetricTooltip>
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <LineChart
-                title="GMV vs Net Revenue"
-                data={gmvTrend || []}
-                xKey="month"
-                yKeys={["gmv", "net_revenue"]}
-                colors={["#3b82f6", "#10b981"]}
-                format="currency"
-                isLoading={gmvLoading}
-              />
+              <div className="space-y-6">
+                <LineChart
+                  title="GMV vs Net Revenue (Complete Months)"
+                  data={completeGmvTrend || []}
+                  xKey="month"
+                  yKeys={["gmv", "net_revenue"]}
+                  colors={["#3b82f6", "#10b981"]}
+                  format="currency"
+                  isLoading={gmvLoading}
+                />
+
+                {/* GMV vs Discount Rate Overlay */}
+                <ComboChart
+                  title="GMV vs Discount Impact"
+                  data={completeGmvTrend || []}
+                  xKey="month"
+                  leftYAxis={{
+                    key: "gmv",
+                    label: "GMV ($)",
+                    color: "#3b82f6",
+                    type: "bar",
+                  }}
+                  rightYAxis={{
+                    key: "discount_rate_pct",
+                    label: "Discount Rate (%)",
+                    color: "#f59e0b",
+                    type: "line",
+                  }}
+                  isLoading={gmvLoading}
+                />
+              </div>
 
               {/* GMV Summary */}
-              {gmvTrend && gmvTrend.length > 0 && (() => {
-                const totalGmv = gmvTrend.reduce((sum, item) => sum + Number(item?.gmv || 0), 0);
-                const totalRevenue = gmvTrend.reduce((sum, item) => sum + Number(item?.net_revenue || 0), 0);
-                const totalDiscount = gmvTrend.reduce((sum, item) => sum + Number(item?.discount_rate_pct || 0), 0);
-                const totalOrders = gmvTrend.reduce((sum, item) => sum + Number(item?.order_count || 0), 0);
+              {completeGmvTrend && completeGmvTrend.length > 0 && (() => {
+                const totalGmv = completeGmvTrend.reduce((sum, item) => sum + Number(item?.gmv || 0), 0);
+                const totalRevenue = completeGmvTrend.reduce((sum, item) => sum + Number(item?.net_revenue || 0), 0);
+                const totalDiscount = completeGmvTrend.reduce((sum, item) => sum + Number(item?.discount_rate_pct || 0), 0);
+                const totalOrders = completeGmvTrend.reduce((sum, item) => sum + Number(item?.order_count || 0), 0);
 
-                const avgGmv = gmvTrend.length > 0 ? totalGmv / gmvTrend.length / 1000000 : 0;
-                const avgRevenue = gmvTrend.length > 0 ? totalRevenue / gmvTrend.length / 1000000 : 0;
-                const avgDiscount = gmvTrend.length > 0 ? totalDiscount / gmvTrend.length : 0;
+                const avgGmv = completeGmvTrend.length > 0 ? totalGmv / completeGmvTrend.length / 1000000 : 0;
+                const avgRevenue = completeGmvTrend.length > 0 ? totalRevenue / completeGmvTrend.length / 1000000 : 0;
+                const avgDiscount = completeGmvTrend.length > 0 ? totalDiscount / completeGmvTrend.length : 0;
                 const ordersInMillions = totalOrders / 1000000;
 
                 return (

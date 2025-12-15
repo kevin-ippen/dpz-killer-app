@@ -1,9 +1,10 @@
 import { ArrowUp, ArrowDown } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { cn, formatCurrency, formatNumber, formatPercent } from "@/lib/utils";
+import { ReactNode } from "react";
 
 interface MetricCardProps {
-  label: string;
+  label: string | ReactNode;
   value: number;
   format?: "currency" | "number" | "percent";
   delta?: {
