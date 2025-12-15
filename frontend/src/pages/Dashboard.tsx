@@ -20,9 +20,24 @@ export function Dashboard() {
   // State for filters
   const [dateRange, setDateRange] = useState<string>("6");
   const [channel, setChannel] = useState<string>("all");
+  const [segment, setSegment] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<string>("overview");
 
-  // Fetch dashboard metrics
+  // Calculate date range for API calls
+  const getDateRange = (months: string) => {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - parseInt(months));
+
+    return {
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
+    };
+  };
+
+  const { startDate, endDate } = getDateRange(dateRange);
+
+  // Fetch dashboard metrics (no date filter on summary for now)
   const { data: metrics, isLoading: metricsLoading } = useQuery({
     queryKey: ["dashboard-metrics"],
     queryFn: metricsApi.getSummary,
@@ -34,13 +49,47 @@ export function Dashboard() {
     queryFn: () => metricsApi.getRevenueTrend(parseInt(dateRange)),
   });
 
-  // Fetch channel breakdown
+  // Fetch GMV trend (uses date range)
+  const { data: gmvTrend, isLoading: gmvLoading } = useQuery({
+    queryKey: ["gmv-trend", startDate, endDate],
+    queryFn: () => metricsApi.getGmvTrend(startDate, endDate),
+  });
+
+  // Fetch channel mix (uses date range) - TODO: Add channel mix visualization
+  // const { data: channelMix } = useQuery({
+  //   queryKey: ["channel-mix", startDate, endDate],
+  //   queryFn: () => metricsApi.getChannelMix(startDate, endDate),
+  // });
+
+  // Fetch CAC by channel
+  const { data: cacByChannel, isLoading: cacLoading } = useQuery({
+    queryKey: ["cac-by-channel"],
+    queryFn: metricsApi.getCacByChannel,
+  });
+
+  // Fetch ARPU by segment
+  const { data: arpuBySegment, isLoading: arpuLoading } = useQuery({
+    queryKey: ["arpu-by-segment"],
+    queryFn: () => metricsApi.getArpuBySegment(),
+  });
+
+  // Fetch attach rate (uses date range and segment)
+  const { data: attachRate, isLoading: attachLoading } = useQuery({
+    queryKey: ["attach-rate", segment, startDate, endDate],
+    queryFn: () => metricsApi.getAttachRate(
+      segment !== "all" ? segment : undefined,
+      startDate,
+      endDate
+    ),
+  });
+
+  // Fetch channel breakdown (legacy endpoint)
   const { data: channelBreakdown, isLoading: channelLoading } = useQuery({
     queryKey: ["channel-breakdown"],
     queryFn: metricsApi.getChannelBreakdown,
   });
 
-  // Filter channel data based on selection
+  // Filter channel data based on selection (client-side for now)
   const filteredChannelData = channel === "all"
     ? channelBreakdown
     : channelBreakdown?.filter((item) => item.channel === channel);
@@ -56,7 +105,7 @@ export function Dashboard() {
           </p>
         </div>
 
-        {/* Date Range Filter */}
+        {/* Filters */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-gray-500" />
@@ -73,6 +122,20 @@ export function Dashboard() {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Customer Segment Filter */}
+          <Select value={segment} onValueChange={setSegment}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="All segments" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Segments</SelectItem>
+              <SelectItem value="Family">Family</SelectItem>
+              <SelectItem value="Young Professional">Young Professional</SelectItem>
+              <SelectItem value="Student">Student</SelectItem>
+              <SelectItem value="Single">Single</SelectItem>
+            </SelectContent>
+          </Select>
 
           {/* Channel Filter */}
           <Select value={channel} onValueChange={setChannel}>
@@ -99,6 +162,7 @@ export function Dashboard() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="sales">Sales Analysis</TabsTrigger>
+          <TabsTrigger value="marketing">Marketing</TabsTrigger>
           <TabsTrigger value="channels">Channels</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
         </TabsList>
@@ -237,6 +301,92 @@ export function Dashboard() {
           </div>
         </TabsContent>
 
+        {/* Marketing Tab */}
+        <TabsContent value="marketing" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Customer Acquisition Cost (CAC)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BarChart
+                title="CAC by Marketing Channel"
+                data={cacByChannel || []}
+                xKey="channel"
+                yKeys={["cac"]}
+                colors={["#f59e0b"]}
+                format="currency"
+                isLoading={cacLoading}
+              />
+
+              {/* CAC metrics grid */}
+              <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6 mt-6">
+                {cacByChannel?.map((item) => (
+                  <Card key={item.channel}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs font-medium">
+                        {item.channel}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-lg font-bold">
+                        ${item.cac.toFixed(2)}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {item.cac_grade}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {item.new_customers.toLocaleString()} customers
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Attach Rates */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Upsell Attach Rates</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {attachRate && attachRate.length > 0 && (
+                  <>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="p-4 bg-blue-50 rounded-lg">
+                        <p className="text-sm text-gray-600">Sides Attach Rate</p>
+                        <p className="text-2xl font-bold text-blue-600">
+                          {attachRate[0]?.sides_attach_rate_pct?.toFixed(1) || 0}%
+                        </p>
+                      </div>
+                      <div className="p-4 bg-green-50 rounded-lg">
+                        <p className="text-sm text-gray-600">Beverage Attach Rate</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          {attachRate[0]?.beverage_attach_rate_pct?.toFixed(1) || 0}%
+                        </p>
+                      </div>
+                      <div className="p-4 bg-purple-50 rounded-lg">
+                        <p className="text-sm text-gray-600">Dessert Attach Rate</p>
+                        <p className="text-2xl font-bold text-purple-600">
+                          {attachRate[0]?.dessert_attach_rate_pct?.toFixed(1) || 0}%
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-500 mt-2">
+                      Based on {attachRate[0]?.total_orders?.toLocaleString()} orders
+                      {segment !== "all" && ` for ${segment} segment`}
+                    </p>
+                  </>
+                )}
+                {(!attachRate || attachRate.length === 0) && !attachLoading && (
+                  <p className="text-gray-500">No attach rate data available for selected filters</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Channels Tab */}
         <TabsContent value="channels" className="space-y-6">
           <Card>
@@ -284,45 +434,90 @@ export function Dashboard() {
         <TabsContent value="customers" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Customer Analytics</CardTitle>
+              <CardTitle>Average Revenue Per User (ARPU) by Segment</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-6 md:grid-cols-2">
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">Customer Segments</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">New Customers</span>
-                      <span className="text-sm font-semibold">24%</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Returning Customers</span>
-                      <span className="text-sm font-semibold">58%</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">VIP Customers</span>
-                      <span className="text-sm font-semibold">18%</span>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">Key Metrics</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm text-gray-600">Retention Rate</p>
-                      <p className="text-2xl font-bold">68%</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Avg Lifetime Value</p>
-                      <p className="text-2xl font-bold">$847</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Churn Rate</p>
-                      <p className="text-2xl font-bold">4.2%</p>
-                    </div>
-                  </div>
-                </div>
+              <BarChart
+                title="ARPU by Customer Segment"
+                data={arpuBySegment || []}
+                xKey="customer_segment"
+                yKeys={["arpu"]}
+                colors={["#10b981"]}
+                format="currency"
+                isLoading={arpuLoading}
+              />
+
+              {/* ARPU metrics grid */}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-6">
+                {arpuBySegment?.slice(0, 4).map((item) => (
+                  <Card key={item.customer_segment}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium">
+                        {item.customer_segment}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        ${item.arpu.toLocaleString()}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {item.customer_count.toLocaleString()} customers
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {item.avg_orders_per_customer.toFixed(1)} orders/year
+                      </p>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* GMV Trend */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Gross Merchandise Value (GMV) Trend</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <LineChart
+                title="GMV vs Net Revenue"
+                data={gmvTrend || []}
+                xKey="month"
+                yKeys={["gmv", "net_revenue"]}
+                colors={["#3b82f6", "#10b981"]}
+                format="currency"
+                isLoading={gmvLoading}
+              />
+
+              {/* GMV Summary */}
+              {gmvTrend && gmvTrend.length > 0 && (
+                <div className="grid gap-4 md:grid-cols-4 mt-4">
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-gray-600">Avg GMV</p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      ${(gmvTrend.reduce((sum, item) => sum + item.gmv, 0) / gmvTrend.length / 1000000).toFixed(1)}M
+                    </p>
+                  </div>
+                  <div className="p-4 bg-green-50 rounded-lg">
+                    <p className="text-sm text-gray-600">Avg Net Revenue</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      ${(gmvTrend.reduce((sum, item) => sum + item.net_revenue, 0) / gmvTrend.length / 1000000).toFixed(1)}M
+                    </p>
+                  </div>
+                  <div className="p-4 bg-orange-50 rounded-lg">
+                    <p className="text-sm text-gray-600">Avg Discount Rate</p>
+                    <p className="text-2xl font-bold text-orange-600">
+                      {(gmvTrend.reduce((sum, item) => sum + item.discount_rate_pct, 0) / gmvTrend.length).toFixed(1)}%
+                    </p>
+                  </div>
+                  <div className="p-4 bg-purple-50 rounded-lg">
+                    <p className="text-sm text-gray-600">Total Orders</p>
+                    <p className="text-2xl font-bold text-purple-600">
+                      {(gmvTrend.reduce((sum, item) => sum + item.order_count, 0) / 1000000).toFixed(1)}M
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
