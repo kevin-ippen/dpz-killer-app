@@ -42,7 +42,8 @@ class LLMClient:
         self,
         messages: List[Dict[str, str]],
         temperature: float = 0.7,
-        max_tokens: int = 500,
+        max_tokens: int = 2048,
+        reasoning_effort: Optional[str] = "medium",
     ) -> str:
         """
         Send a chat completion request to the LLM endpoint
@@ -51,10 +52,11 @@ class LLMClient:
             messages: List of message dicts with 'role' and 'content' keys
                      Example: [{"role": "user", "content": "What is revenue?"}]
             temperature: Sampling temperature (0-1), higher = more creative
-            max_tokens: Maximum tokens to generate
+            max_tokens: Maximum tokens to generate (increased default to avoid truncation)
+            reasoning_effort: For reasoning models like GPT-OSS ("low" | "medium" | "high")
 
         Returns:
-            Generated text response from the LLM
+            Generated text response from the LLM (extracts final answer from reasoning blocks)
 
         Raises:
             Exception: If the request fails
@@ -84,13 +86,20 @@ class LLMClient:
 
             logger.info(f"Sending chat completion request to endpoint: {self.model_name}")
 
+            # Build query parameters
+            query_params = {
+                "name": self.model_name,
+                "messages": sdk_messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+            }
+
+            # Add reasoning_effort for reasoning models (databricks-gpt-oss-120b)
+            if reasoning_effort:
+                query_params["extra_params"] = {"reasoning_effort": reasoning_effort}
+
             # Use SDK's query method which handles auth automatically
-            response = ws.serving_endpoints.query(
-                name=self.model_name,
-                messages=sdk_messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
+            response = ws.serving_endpoints.query(**query_params)
 
             # Extract content from response
             if response.choices and len(response.choices) > 0:
@@ -99,25 +108,41 @@ class LLMClient:
                     content = choice.message.content
 
                     # Handle reasoning model response (list of content blocks)
+                    # GPT-OSS returns structured content with reasoning and text blocks
                     if isinstance(content, list):
-                        # Extract text from content blocks
                         text_parts = []
-                        for block in content:
-                            if isinstance(block, dict):
-                                # Look for 'text' field in the block
-                                if 'text' in block:
-                                    text_parts.append(block['text'])
-                                # Or 'content' field
-                                elif 'content' in block:
-                                    text_parts.append(block['content'])
+                        reasoning_parts = []
 
+                        for block in content:
+                            if not isinstance(block, dict):
+                                continue
+
+                            block_type = block.get('type')
+
+                            # Extract final answer from "text" block
+                            if block_type == 'text' and 'text' in block:
+                                text_parts.append(block['text'])
+
+                            # Extract reasoning from "reasoning" block (optional, for debugging)
+                            elif block_type == 'reasoning' and 'summary' in block:
+                                summary = block['summary']
+                                if isinstance(summary, list):
+                                    for summary_item in summary:
+                                        if isinstance(summary_item, dict) and summary_item.get('type') == 'summary_text':
+                                            reasoning_parts.append(summary_item.get('text', ''))
+
+                        # Return the final text answer (not the reasoning)
                         if text_parts:
                             return '\n\n'.join(text_parts)
+                        elif reasoning_parts:
+                            # Fallback: if no text block, return reasoning (might happen if max_tokens too low)
+                            logger.warning("No 'text' block found, returning reasoning summary")
+                            return '\n\n'.join(reasoning_parts)
                         else:
                             logger.error(f"Could not extract text from content blocks: {content}")
                             return "Sorry, I received an unexpected response format from the model."
 
-                    # Simple string response
+                    # Simple string response (non-reasoning models)
                     return content
                 else:
                     logger.error("Response choice has no message content")
