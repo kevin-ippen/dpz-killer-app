@@ -36,18 +36,32 @@ class LLMClient:
         if not self.token:
             logger.info("DATABRICKS_TOKEN not set - will use Databricks SDK default credentials")
 
-    def _get_token(self) -> str:
+    def _get_token(self) -> Optional[str]:
         """Get authentication token, using WorkspaceClient if explicit token not available"""
         if self.token:
             return self.token
 
-        # Initialize WorkspaceClient with default credentials (service principal)
-        if not self._workspace_client:
-            logger.info("Initializing WorkspaceClient for authentication")
-            self._workspace_client = WorkspaceClient()
+        try:
+            # Initialize WorkspaceClient with default credentials (service principal)
+            if not self._workspace_client:
+                logger.info("Initializing WorkspaceClient for authentication")
+                self._workspace_client = WorkspaceClient()
 
-        # Get token from the workspace client's auth config
-        return self._workspace_client.config.token
+            # Get token from the workspace client's auth config
+            # The token might be a callable or direct value
+            token = self._workspace_client.config.token
+            if callable(token):
+                token = token()
+
+            if token:
+                logger.info("Successfully obtained token from WorkspaceClient")
+                return token
+            else:
+                logger.warning("WorkspaceClient token is None")
+                return None
+        except Exception as e:
+            logger.error(f"Error getting token from WorkspaceClient: {e}", exc_info=True)
+            return None
 
     async def chat_completion(
         self,

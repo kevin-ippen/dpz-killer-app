@@ -16,6 +16,7 @@ Usage:
 """
 from typing import List, Optional, Dict, Any
 from databricks import sql
+from databricks.sdk import WorkspaceClient
 from app.core.config import settings
 import logging
 
@@ -40,6 +41,14 @@ class DatabricksRepository:
         self.catalog = settings.CATALOG
         self.schema = settings.SCHEMA
         self.connection = None
+        self._workspace_client = None
+
+    def _get_workspace_client(self) -> WorkspaceClient:
+        """Get or create WorkspaceClient for authentication"""
+        if not self._workspace_client:
+            logger.info("Initializing WorkspaceClient for default authentication")
+            self._workspace_client = WorkspaceClient()
+        return self._workspace_client
 
     def _get_connection(self):
         """
@@ -65,10 +74,30 @@ class DatabricksRepository:
                     access_token=settings.DATABRICKS_TOKEN
                 )
             elif settings.DATABRICKS_HTTP_PATH:
-                # Use default credentials (Databricks Apps service principal)
-                logger.info("Connecting to Databricks SQL warehouse with default credentials (service principal)")
+                # Use WorkspaceClient to get credentials (Databricks Apps service principal)
+                logger.info("Connecting to Databricks SQL warehouse with WorkspaceClient default credentials")
+                ws = self._get_workspace_client()
+
+                # Extract credentials from WorkspaceClient config
+                host = ws.config.host
+                if not host:
+                    raise ValueError("Unable to determine Databricks host from WorkspaceClient")
+
+                # Get token from WorkspaceClient
+                token = ws.config.token
+                if callable(token):
+                    token = token()
+
+                if not token:
+                    raise ValueError("Unable to obtain access token from WorkspaceClient")
+
+                logger.info(f"Using host from WorkspaceClient: {host}")
+
+                # Connect using credentials from WorkspaceClient
                 self.connection = sql.connect(
-                    http_path=settings.DATABRICKS_HTTP_PATH
+                    server_hostname=host,
+                    http_path=settings.DATABRICKS_HTTP_PATH,
+                    access_token=token
                 )
             else:
                 raise ValueError(
