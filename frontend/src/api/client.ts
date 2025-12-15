@@ -175,6 +175,118 @@ export const metricsApi = {
     const response = await apiClient.get('/metrics/channel-breakdown');
     return response.data;
   },
+
+  /**
+   * Get Customer Acquisition Cost (CAC) by channel
+   */
+  getCacByChannel: async (): Promise<Array<{
+    channel: string;
+    total_spend: number;
+    new_customers: number;
+    cac: number;
+    cac_grade: string;
+  }>> => {
+    const response = await apiClient.get('/metrics/cac-by-channel');
+    return response.data;
+  },
+
+  /**
+   * Get Average Revenue Per User (ARPU) by segment
+   */
+  getArpuBySegment: async (year?: number): Promise<Array<{
+    customer_segment: string;
+    order_year: number;
+    arpu: number;
+    customer_count: number;
+    total_revenue: number;
+    avg_orders_per_customer: number;
+  }>> => {
+    const response = await apiClient.get('/metrics/arpu-by-segment', {
+      params: year ? { year } : undefined,
+    });
+    return response.data;
+  },
+
+  /**
+   * Get cohort retention curves
+   */
+  getCohortRetention: async (cohortMonth?: string): Promise<Array<{
+    cohort_month: string;
+    months_since_acquisition: number;
+    cohort_size: number;
+    active_customers: number;
+    retention_rate_pct: number;
+    total_revenue: number;
+    avg_revenue_per_customer: number;
+  }>> => {
+    const response = await apiClient.get('/metrics/cohort-retention', {
+      params: cohortMonth ? { cohort_month: cohortMonth } : undefined,
+    });
+    return response.data;
+  },
+
+  /**
+   * Get Gross Merchandise Value (GMV) trend
+   */
+  getGmvTrend: async (startDate?: string, endDate?: string): Promise<Array<{
+    month: string;
+    gmv: number;
+    net_revenue: number;
+    total_discounts: number;
+    discount_rate_pct: number;
+    order_count: number;
+    customer_count: number;
+  }>> => {
+    const response = await apiClient.get('/metrics/gmv-trend', {
+      params: {
+        ...(startDate && { start_date: startDate }),
+        ...(endDate && { end_date: endDate }),
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get channel mix (order and revenue distribution)
+   */
+  getChannelMix: async (startDate?: string, endDate?: string): Promise<Array<{
+    month: string;
+    channel: string;
+    order_count: number;
+    revenue: number;
+    pct_of_orders: number;
+    pct_of_revenue: number;
+  }>> => {
+    const response = await apiClient.get('/metrics/channel-mix', {
+      params: {
+        ...(startDate && { start_date: startDate }),
+        ...(endDate && { end_date: endDate }),
+      },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get attach rate (upsell metrics)
+   */
+  getAttachRate: async (segment?: string, startDate?: string, endDate?: string): Promise<Array<{
+    month: string;
+    customer_segment: string;
+    total_orders: number;
+    sides_attach_rate_pct: number;
+    dessert_attach_rate_pct: number;
+    beverage_attach_rate_pct: number;
+    any_addon_rate_pct: number;
+  }>> => {
+    const response = await apiClient.get('/metrics/attach-rate', {
+      params: {
+        ...(segment && { segment }),
+        ...(startDate && { start_date: startDate }),
+        ...(endDate && { end_date: endDate }),
+      },
+    });
+    return response.data;
+  },
 };
 
 export default apiClient;
