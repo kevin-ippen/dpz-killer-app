@@ -33,12 +33,9 @@ resources:
       privilege: EXECUTE
 
 # Environment variables
-# Databricks auto-injects these variables for authentication
+# Note: DATABRICKS_HOST and DATABRICKS_TOKEN are automatically injected by Databricks Apps
+# Do NOT explicitly define them here - Databricks Apps will handle authentication automatically
 env:
-  - name: DATABRICKS_HOST
-    value: ${workspace.host}
-  - name: DATABRICKS_TOKEN
-    value: ${workspace.token}
   - name: DATABRICKS_HTTP_PATH
     value: /sql/1.0/warehouses/148ccb90800933a1
   - name: CATALOG
