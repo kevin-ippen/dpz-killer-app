@@ -10,7 +10,7 @@ venv/
 ENV/
 build/
 develop-eggs/
-dist/
+# dist/  # Commented out to allow frontend/dist/
 downloads/
 eggs/
 .eggs/
@@ -43,7 +43,7 @@ htmlcov/
 
 # Frontend
 frontend/node_modules/
-frontend/dist/
+# frontend/dist/  # KEEP dist for Databricks Apps deployment
 frontend/.vite/
 frontend/npm-debug.log*
 frontend/yarn-debug.log*
