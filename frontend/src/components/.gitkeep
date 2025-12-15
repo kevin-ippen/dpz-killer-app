@@ -1,0 +1,6 @@
+# Place your React components here
+
+Examples:
+- components/ui/ - Reusable UI components (buttons, cards, modals)
+- components/layout/ - Layout components (header, footer, sidebar)
+- components/features/ - Feature-specific components

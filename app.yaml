@@ -1,0 +1,54 @@
+# Databricks Apps Configuration
+#
+# This file configures your application for deployment to Databricks Apps.
+# For more information, see: https://docs.databricks.com/en/dev-tools/databricks-apps/index.html
+
+# Command to start the application
+# Note: uvicorn will serve both API and frontend static files
+command: ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Resource configuration (optional)
+# Uncomment and adjust based on your needs
+# resources:
+#   memory: "2Gi"
+#   cpu: "1"
+
+# Unity Catalog permissions (optional)
+# Grant the app service principal access to UC resources
+# resources:
+#   uc_securable:
+#     # Grant READ access to specific tables
+#     - securable_type: TABLE
+#       securable_full_name: main.default.my_table
+#       privilege: SELECT
+#
+#     # Grant READ access to volumes for file serving
+#     - securable_type: VOLUME
+#       securable_full_name: main.default.my_volume
+#       privilege: READ_VOLUME
+#
+#     # Grant access to Model Serving endpoints
+#     - securable_type: SERVING_ENDPOINT
+#       securable_full_name: my_embedding_model
+#       privilege: EXECUTE
+
+# Environment variables
+# Databricks auto-injects these variables for authentication
+env:
+  - name: DATABRICKS_HOST
+    value: ${workspace.host}
+  - name: DATABRICKS_TOKEN
+    value: ${workspace.token}
+
+# Note: Add DATABRICKS_HTTP_PATH manually or via secrets
+# Options:
+# 1. Add directly (not recommended for security):
+#   - name: DATABRICKS_HTTP_PATH
+#     value: /sql/1.0/warehouses/your-warehouse-id
+#
+# 2. Use Databricks Secrets (recommended):
+#   - name: DATABRICKS_HTTP_PATH
+#     valueFrom:
+#       secretKeyRef:
+#         name: databricks-config
+#         key: http_path
