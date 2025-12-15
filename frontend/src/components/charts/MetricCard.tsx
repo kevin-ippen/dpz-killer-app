@@ -66,30 +66,50 @@ export function MetricCard({
           )}
 
           {/* Sparkline (mini chart) */}
-          {sparkline && sparkline.length > 0 && (
-            <div className="h-12 w-full">
-              <svg
-                className="h-full w-full"
-                viewBox={`0 0 ${sparkline.length * 10} 100`}
-                preserveAspectRatio="none"
-              >
-                <polyline
-                  fill="none"
-                  stroke={delta?.isPositive ? "#16a34a" : "#dc2626"}
-                  strokeWidth="2"
-                  points={sparkline
-                    .map((val, idx) => {
-                      const x = idx * 10;
-                      const max = Math.max(...sparkline);
-                      const min = Math.min(...sparkline);
-                      const y = 100 - ((val - min) / (max - min)) * 100;
-                      return `${x},${y}`;
-                    })
-                    .join(" ")}
-                />
-              </svg>
-            </div>
-          )}
+          {sparkline && sparkline.length > 0 && (() => {
+            const max = Math.max(...sparkline);
+            const min = Math.min(...sparkline);
+            const range = max - min;
+
+            // Calculate proper dimensions
+            const numPoints = sparkline.length;
+            const viewBoxWidth = 100; // Fixed width for consistency
+            const viewBoxHeight = 50; // Reasonable height
+            const padding = 5; // Padding to prevent edge clipping
+            const usableWidth = viewBoxWidth - (padding * 2);
+            const usableHeight = viewBoxHeight - (padding * 2);
+
+            // Calculate points with proper spacing across full width
+            const points = sparkline.map((val, idx) => {
+              // Distribute points evenly across the usable width
+              const x = padding + (idx / (numPoints - 1)) * usableWidth;
+
+              // Scale y value with padding
+              const normalizedY = range === 0 ? 0.5 : (val - min) / range;
+              const y = padding + (1 - normalizedY) * usableHeight;
+
+              return `${x.toFixed(2)},${y.toFixed(2)}`;
+            }).join(" ");
+
+            return (
+              <div className="h-12 w-full">
+                <svg
+                  className="h-full w-full"
+                  viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
+                  preserveAspectRatio="none"
+                >
+                  <polyline
+                    fill="none"
+                    stroke={delta?.isPositive ? "#16a34a" : "#dc2626"}
+                    strokeWidth="1"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={points}
+                  />
+                </svg>
+              </div>
+            );
+          })()}
         </div>
       </CardContent>
     </Card>
