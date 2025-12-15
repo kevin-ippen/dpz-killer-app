@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   BarChart as RechartsBarChart,
   Bar,
@@ -18,7 +19,6 @@ interface BarChartProps {
   yKeys: string[];
   colors?: string[];
   format?: "currency" | "number";
-  stacked?: boolean;
   isLoading?: boolean;
 }
 
@@ -31,14 +31,53 @@ export function BarChart({
   yKeys,
   colors = defaultColors,
   format = "number",
-  stacked = false,
   isLoading = false,
 }: BarChartProps) {
+  // Calculate dynamic domain based on data
+  const yDomain = useMemo(() => {
+    if (!data || data.length === 0) return [0, 100];
+
+    const allValues = data.flatMap((item) =>
+      yKeys.map((key) => Number(item[key]) || 0)
+    );
+
+    const minValue = Math.min(...allValues);
+    const maxValue = Math.max(...allValues);
+
+    // Add 10% padding to top for better visualization
+    const padding = (maxValue - minValue) * 0.1;
+    const min = Math.max(0, Math.floor(minValue - padding));
+    const max = Math.ceil(maxValue + padding);
+
+    return [min, max];
+  }, [data, yKeys]);
+
   const formatValue = (value: number) => {
     if (format === "currency") {
+      // Use compact format for large numbers in axis labels
+      if (value >= 1000000) {
+        return `$${(value / 1000000).toFixed(1)}M`;
+      } else if (value >= 1000) {
+        return `$${(value / 1000).toFixed(0)}K`;
+      }
       return formatCurrency(value);
     }
+
+    // Use compact format for large numbers
+    if (value >= 1000000) {
+      return `${(value / 1000000).toFixed(1)}M`;
+    } else if (value >= 1000) {
+      return `${(value / 1000).toFixed(0)}K`;
+    }
     return formatNumber(value);
+  };
+
+  const formatTooltipValue = (value: any) => {
+    const numValue = Number(value);
+    if (format === "currency") {
+      return formatCurrency(numValue);
+    }
+    return formatNumber(numValue);
   };
 
   return (
@@ -54,37 +93,37 @@ export function BarChart({
         ) : (
           <ResponsiveContainer width="100%" height={300}>
             <RechartsBarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis
-              dataKey={xKey}
-              tick={{ fill: "#6b7280", fontSize: 12 }}
-              tickLine={{ stroke: "#e5e7eb" }}
-            />
-            <YAxis
-              tick={{ fill: "#6b7280", fontSize: 12 }}
-              tickLine={{ stroke: "#e5e7eb" }}
-              tickFormatter={formatValue}
-            />
-            <Tooltip
-              formatter={(value: any) => formatValue(value)}
-              contentStyle={{
-                backgroundColor: "white",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-              }}
-            />
-            <Legend />
-            {yKeys.map((key, index) => (
-              <Bar
-                key={key}
-                dataKey={key}
-                fill={colors[index % colors.length]}
-                radius={[4, 4, 0, 0]}
-                stackId={stacked ? "stack" : undefined}
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis
+                dataKey={xKey}
+                tick={{ fill: "#6b7280", fontSize: 12 }}
+                tickLine={{ stroke: "#e5e7eb" }}
               />
-            ))}
-          </RechartsBarChart>
-        </ResponsiveContainer>
+              <YAxis
+                domain={yDomain}
+                tick={{ fill: "#6b7280", fontSize: 12 }}
+                tickLine={{ stroke: "#e5e7eb" }}
+                tickFormatter={formatValue}
+              />
+              <Tooltip
+                formatter={(value: any) => formatTooltipValue(value)}
+                contentStyle={{
+                  backgroundColor: "white",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "8px",
+                }}
+              />
+              <Legend />
+              {yKeys.map((key, index) => (
+                <Bar
+                  key={key}
+                  dataKey={key}
+                  fill={colors[index % colors.length]}
+                  radius={[4, 4, 0, 0]}
+                />
+              ))}
+            </RechartsBarChart>
+          </ResponsiveContainer>
         )}
       </CardContent>
     </Card>

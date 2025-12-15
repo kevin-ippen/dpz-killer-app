@@ -496,34 +496,46 @@ export function Dashboard() {
               />
 
               {/* GMV Summary */}
-              {gmvTrend && gmvTrend.length > 0 && (
-                <div className="grid gap-4 md:grid-cols-4 mt-4">
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Avg GMV</p>
-                    <p className="text-2xl font-bold text-blue-600">
-                      ${(gmvTrend.reduce((sum, item) => sum + (item?.gmv || 0), 0) / gmvTrend.length / 1000000).toFixed(1)}M
-                    </p>
+              {gmvTrend && gmvTrend.length > 0 && (() => {
+                const totalGmv = gmvTrend.reduce((sum, item) => sum + Number(item?.gmv || 0), 0);
+                const totalRevenue = gmvTrend.reduce((sum, item) => sum + Number(item?.net_revenue || 0), 0);
+                const totalDiscount = gmvTrend.reduce((sum, item) => sum + Number(item?.discount_rate_pct || 0), 0);
+                const totalOrders = gmvTrend.reduce((sum, item) => sum + Number(item?.order_count || 0), 0);
+
+                const avgGmv = gmvTrend.length > 0 ? totalGmv / gmvTrend.length / 1000000 : 0;
+                const avgRevenue = gmvTrend.length > 0 ? totalRevenue / gmvTrend.length / 1000000 : 0;
+                const avgDiscount = gmvTrend.length > 0 ? totalDiscount / gmvTrend.length : 0;
+                const ordersInMillions = totalOrders / 1000000;
+
+                return (
+                  <div className="grid gap-4 md:grid-cols-4 mt-4">
+                    <div className="p-4 bg-blue-50 rounded-lg">
+                      <p className="text-sm text-gray-600">Avg GMV</p>
+                      <p className="text-2xl font-bold text-blue-600">
+                        ${!isNaN(avgGmv) && isFinite(avgGmv) ? avgGmv.toFixed(1) : '0.0'}M
+                      </p>
+                    </div>
+                    <div className="p-4 bg-green-50 rounded-lg">
+                      <p className="text-sm text-gray-600">Avg Net Revenue</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        ${!isNaN(avgRevenue) && isFinite(avgRevenue) ? avgRevenue.toFixed(1) : '0.0'}M
+                      </p>
+                    </div>
+                    <div className="p-4 bg-orange-50 rounded-lg">
+                      <p className="text-sm text-gray-600">Avg Discount Rate</p>
+                      <p className="text-2xl font-bold text-orange-600">
+                        {!isNaN(avgDiscount) && isFinite(avgDiscount) ? avgDiscount.toFixed(1) : '0.0'}%
+                      </p>
+                    </div>
+                    <div className="p-4 bg-purple-50 rounded-lg">
+                      <p className="text-sm text-gray-600">Total Orders</p>
+                      <p className="text-2xl font-bold text-purple-600">
+                        {!isNaN(ordersInMillions) && isFinite(ordersInMillions) ? ordersInMillions.toFixed(1) : '0.0'}M
+                      </p>
+                    </div>
                   </div>
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Avg Net Revenue</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      ${(gmvTrend.reduce((sum, item) => sum + (item?.net_revenue || 0), 0) / gmvTrend.length / 1000000).toFixed(1)}M
-                    </p>
-                  </div>
-                  <div className="p-4 bg-orange-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Avg Discount Rate</p>
-                    <p className="text-2xl font-bold text-orange-600">
-                      {(gmvTrend.reduce((sum, item) => sum + (item?.discount_rate_pct || 0), 0) / gmvTrend.length).toFixed(1)}%
-                    </p>
-                  </div>
-                  <div className="p-4 bg-purple-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Total Orders</p>
-                    <p className="text-2xl font-bold text-purple-600">
-                      {(gmvTrend.reduce((sum, item) => sum + (item?.order_count || 0), 0) / 1000000).toFixed(1)}M
-                    </p>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>
