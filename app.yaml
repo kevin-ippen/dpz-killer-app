@@ -42,7 +42,5 @@ env:
     value: main
   - name: SCHEMA
     value: dominos_analytics
-  - name: LLM_ENDPOINT
-    value: https://adb-984752964297111.11.azuredatabricks.net/serving-endpoints/databricks-gpt-oss-120b/invocations
   - name: LLM_MODEL_NAME
     value: databricks-gpt-oss-120b

@@ -61,8 +61,8 @@ async def chat_query(request: ChatRequest):
     """
     try:
         # Check if LLM is configured
-        if not llm_client.endpoint:
-            logger.warning("LLM endpoint not configured, using fallback")
+        if not llm_client.model_name:
+            logger.warning("LLM model name not configured, using fallback")
             return _fallback_response(request)
 
         # Generate response using LLM

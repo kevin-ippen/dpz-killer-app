@@ -5,10 +5,10 @@ This module provides a client for interacting with Databricks model serving endp
 specifically for the databricks-gpt-oss-120b model.
 """
 from typing import List, Dict, Optional
-import httpx
 import logging
 from app.core.config import settings
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
 
 logger = logging.getLogger(__name__)
 
@@ -19,49 +19,24 @@ class LLMClient:
 
     Handles authentication, request formatting, and response parsing
     for chat completion requests to Databricks model serving.
+    Uses Databricks SDK's serving client which handles auth automatically.
     """
 
     def __init__(self):
         """Initialize LLM client with configuration from settings"""
-        self.endpoint = settings.LLM_ENDPOINT
         self.model_name = settings.LLM_MODEL_NAME
         self.timeout = settings.MODEL_SERVING_TIMEOUT
-
-        # Use explicit token if available, otherwise use WorkspaceClient for service principal auth
-        self.token = settings.DATABRICKS_TOKEN
         self._workspace_client = None
 
-        if not self.endpoint:
-            logger.warning("LLM_ENDPOINT not configured - chat will use fallback responses")
-        if not self.token:
-            logger.info("DATABRICKS_TOKEN not set - will use Databricks SDK default credentials")
+        if not self.model_name:
+            logger.warning("LLM_MODEL_NAME not configured - chat will use fallback responses")
 
-    def _get_token(self) -> Optional[str]:
-        """Get authentication token, using WorkspaceClient if explicit token not available"""
-        if self.token:
-            return self.token
-
-        try:
-            # Initialize WorkspaceClient with default credentials (service principal)
-            if not self._workspace_client:
-                logger.info("Initializing WorkspaceClient for authentication")
-                self._workspace_client = WorkspaceClient()
-
-            # Get token from the workspace client's auth config
-            # The token might be a callable or direct value
-            token = self._workspace_client.config.token
-            if callable(token):
-                token = token()
-
-            if token:
-                logger.info("Successfully obtained token from WorkspaceClient")
-                return token
-            else:
-                logger.warning("WorkspaceClient token is None")
-                return None
-        except Exception as e:
-            logger.error(f"Error getting token from WorkspaceClient: {e}", exc_info=True)
-            return None
+    def _get_workspace_client(self) -> WorkspaceClient:
+        """Get or create WorkspaceClient with default authentication"""
+        if not self._workspace_client:
+            logger.info("Initializing WorkspaceClient for serving endpoint access")
+            self._workspace_client = WorkspaceClient()
+        return self._workspace_client
 
     async def chat_completion(
         self,
@@ -82,62 +57,55 @@ class LLMClient:
             Generated text response from the LLM
 
         Raises:
-            httpx.HTTPError: If the request fails
+            Exception: If the request fails
         """
-        if not self.endpoint:
-            logger.error("LLM endpoint not configured")
-            raise ValueError("LLM endpoint not configured")
-
-        # Get authentication token (explicit or from WorkspaceClient)
-        token = self._get_token()
-        if not token:
-            logger.error("Unable to obtain authentication token")
-            raise ValueError("Authentication token not available")
-
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        }
-
-        # Format request for Databricks model serving
-        payload = {
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
+        if not self.model_name:
+            logger.error("LLM model name not configured")
+            raise ValueError("LLM model name not configured")
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                logger.info(f"Sending chat completion request to {self.endpoint}")
-                logger.debug(f"Request payload: {payload}")
+            ws = self._get_workspace_client()
 
-                response = await client.post(
-                    self.endpoint,
-                    json=payload,
-                    headers=headers,
-                )
+            # Convert message dicts to SDK ChatMessage objects
+            sdk_messages = []
+            for msg in messages:
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
 
-                response.raise_for_status()
-                result = response.json()
-
-                # Extract the generated text from the response
-                # The response format may vary by model, adjust as needed
-                if "choices" in result and len(result["choices"]) > 0:
-                    message = result["choices"][0].get("message", {})
-                    content = message.get("content", "")
-                    return content
-                elif "predictions" in result:
-                    # Alternative format
-                    return result["predictions"][0]
+                # Map role string to ChatMessageRole enum
+                if role == "system":
+                    message_role = ChatMessageRole.SYSTEM
+                elif role == "assistant":
+                    message_role = ChatMessageRole.ASSISTANT
                 else:
-                    logger.error(f"Unexpected response format: {result}")
-                    return "Sorry, I received an unexpected response format from the model."
+                    message_role = ChatMessageRole.USER
 
-        except httpx.HTTPError as e:
-            logger.error(f"HTTP error calling LLM endpoint: {e}", exc_info=True)
-            raise
+                sdk_messages.append(ChatMessage(role=message_role, content=content))
+
+            logger.info(f"Sending chat completion request to endpoint: {self.model_name}")
+
+            # Use SDK's query method which handles auth automatically
+            response = ws.serving_endpoints.query(
+                name=self.model_name,
+                messages=sdk_messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+
+            # Extract content from response
+            if response.choices and len(response.choices) > 0:
+                choice = response.choices[0]
+                if choice.message and choice.message.content:
+                    return choice.message.content
+                else:
+                    logger.error("Response choice has no message content")
+                    return "Sorry, the model returned an empty response."
+            else:
+                logger.error("Response has no choices")
+                return "Sorry, the model returned an unexpected response format."
+
         except Exception as e:
-            logger.error(f"Error calling LLM endpoint: {e}", exc_info=True)
+            logger.error(f"Error calling LLM endpoint via SDK: {e}", exc_info=True)
             raise
 
     async def generate_analytics_response(

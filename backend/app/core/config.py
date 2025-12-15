@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     # Example: IMAGES_VOLUME_PATH: str = "/Volumes/main/default/files/"
 
     # Model Serving Endpoints
-    LLM_ENDPOINT: Optional[str] = os.getenv("LLM_ENDPOINT")
+    # LLM_MODEL_NAME is the serving endpoint name (not full URL)
     LLM_MODEL_NAME: Optional[str] = os.getenv("LLM_MODEL_NAME", "databricks-gpt-oss-120b")
 
     # API Configuration
