@@ -8,6 +8,7 @@ from typing import List, Dict, Optional
 import httpx
 import logging
 from app.core.config import settings
+from databricks.sdk import WorkspaceClient
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +25,29 @@ class LLMClient:
         """Initialize LLM client with configuration from settings"""
         self.endpoint = settings.LLM_ENDPOINT
         self.model_name = settings.LLM_MODEL_NAME
-        self.token = settings.DATABRICKS_TOKEN
         self.timeout = settings.MODEL_SERVING_TIMEOUT
+
+        # Use explicit token if available, otherwise use WorkspaceClient for service principal auth
+        self.token = settings.DATABRICKS_TOKEN
+        self._workspace_client = None
 
         if not self.endpoint:
             logger.warning("LLM_ENDPOINT not configured - chat will use fallback responses")
+        if not self.token:
+            logger.info("DATABRICKS_TOKEN not set - will use Databricks SDK default credentials")
+
+    def _get_token(self) -> str:
+        """Get authentication token, using WorkspaceClient if explicit token not available"""
+        if self.token:
+            return self.token
+
+        # Initialize WorkspaceClient with default credentials (service principal)
+        if not self._workspace_client:
+            logger.info("Initializing WorkspaceClient for authentication")
+            self._workspace_client = WorkspaceClient()
+
+        # Get token from the workspace client's auth config
+        return self._workspace_client.config.token
 
     async def chat_completion(
         self,
@@ -51,12 +70,18 @@ class LLMClient:
         Raises:
             httpx.HTTPError: If the request fails
         """
-        if not self.endpoint or not self.token:
-            logger.error("LLM endpoint or token not configured")
+        if not self.endpoint:
+            logger.error("LLM endpoint not configured")
             raise ValueError("LLM endpoint not configured")
 
+        # Get authentication token (explicit or from WorkspaceClient)
+        token = self._get_token()
+        if not token:
+            logger.error("Unable to obtain authentication token")
+            raise ValueError("Authentication token not available")
+
         headers = {
-            "Authorization": f"Bearer {self.token}",
+            "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
 

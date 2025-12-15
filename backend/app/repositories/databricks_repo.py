@@ -46,7 +46,8 @@ class DatabricksRepository:
         Get or create Databricks SQL connection
 
         Connection is created lazily on first use and reused for subsequent queries.
-        Uses credentials from environment variables (auto-injected by Databricks Apps).
+        Uses Databricks SDK's default credential provider which automatically
+        discovers credentials from environment (Databricks Apps service principal).
 
         Returns:
             Active Databricks SQL connection
@@ -55,18 +56,25 @@ class DatabricksRepository:
             ValueError: If required Databricks credentials are not set
         """
         if self.connection is None:
-            if not all([settings.DATABRICKS_HOST, settings.DATABRICKS_HTTP_PATH, settings.DATABRICKS_TOKEN]):
-                raise ValueError(
-                    "Missing Databricks credentials. Set DATABRICKS_HOST, "
-                    "DATABRICKS_HTTP_PATH, and DATABRICKS_TOKEN environment variables."
+            # Try explicit credentials first (for local development)
+            if settings.DATABRICKS_HOST and settings.DATABRICKS_TOKEN and settings.DATABRICKS_HTTP_PATH:
+                logger.info(f"Connecting to Databricks SQL warehouse with explicit credentials: {settings.DATABRICKS_HOST}")
+                self.connection = sql.connect(
+                    server_hostname=settings.DATABRICKS_HOST,
+                    http_path=settings.DATABRICKS_HTTP_PATH,
+                    access_token=settings.DATABRICKS_TOKEN
                 )
-
-            logger.info(f"Connecting to Databricks SQL warehouse: {settings.DATABRICKS_HOST}")
-            self.connection = sql.connect(
-                server_hostname=settings.DATABRICKS_HOST,
-                http_path=settings.DATABRICKS_HTTP_PATH,
-                access_token=settings.DATABRICKS_TOKEN
-            )
+            elif settings.DATABRICKS_HTTP_PATH:
+                # Use default credentials (Databricks Apps service principal)
+                logger.info("Connecting to Databricks SQL warehouse with default credentials (service principal)")
+                self.connection = sql.connect(
+                    http_path=settings.DATABRICKS_HTTP_PATH
+                )
+            else:
+                raise ValueError(
+                    "Missing Databricks credentials. Set DATABRICKS_HTTP_PATH at minimum. "
+                    "For local dev, also set DATABRICKS_HOST and DATABRICKS_TOKEN."
+                )
         return self.connection
 
     def execute_query(
