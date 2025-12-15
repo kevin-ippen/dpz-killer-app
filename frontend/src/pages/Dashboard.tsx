@@ -18,7 +18,11 @@ import {
 import { Calendar } from "lucide-react";
 import { MetricTooltip } from "@/components/MetricTooltip";
 import { FilterPills } from "@/components/FilterPills";
+import { InsightsPanel } from "@/components/InsightsPanel";
 import { filterCompleteMonths, getDateRangeLabel } from "@/lib/utils";
+import { generateInsights } from "@/lib/generateInsights";
+import { exportToCSV, exportToJSON } from "@/lib/exportData";
+import { Download } from "lucide-react";
 
 export function Dashboard() {
   // State for filters
@@ -236,6 +240,43 @@ export function Dashboard() {
     setSelectedPreset("none");
   };
 
+  // Generate AI insights from dashboard data
+  const insights = useMemo(() => {
+    return generateInsights({
+      cacByChannel,
+      arpuBySegment,
+      gmvTrend: completeGmvTrend,
+      attachRate,
+      channelBreakdown,
+    });
+  }, [cacByChannel, arpuBySegment, completeGmvTrend, attachRate, channelBreakdown]);
+
+  // Export handler
+  const handleExport = (format: "csv" | "json") => {
+    const exportData = {
+      metrics,
+      revenueTrend: completeRevenueTrend,
+      cacByChannel,
+      arpuBySegment,
+      gmvTrend: completeGmvTrend,
+      channelBreakdown,
+      insights,
+      filters: {
+        dateRange: getDateRangeLabel(dateRange),
+        segment,
+        channel,
+        timeGrain,
+        comparisonMode,
+      },
+    };
+
+    if (format === "csv") {
+      exportToCSV(exportData, `dominos-dashboard-${activeTab}`);
+    } else {
+      exportToJSON(exportData, `dominos-dashboard-${activeTab}`);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -293,9 +334,26 @@ export function Dashboard() {
             </SelectContent>
           </Select>
 
-          <Button variant="outline" size="sm">
-            Export
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleExport("csv")}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleExport("json")}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Export JSON
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -409,6 +467,9 @@ export function Dashboard() {
               loading={metricsLoading}
             />
           </div>
+
+          {/* AI-Generated Insights */}
+          <InsightsPanel insights={insights} />
 
           {/* Trend Charts */}
           <div className="grid gap-6 lg:grid-cols-2">
