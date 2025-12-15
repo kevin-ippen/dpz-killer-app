@@ -329,13 +329,13 @@ export function Dashboard() {
                     </CardHeader>
                     <CardContent>
                       <div className="text-lg font-bold">
-                        ${item.cac.toFixed(2)}
+                        ${Number(item?.cac || 0).toFixed(2)}
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
                         {item.cac_grade}
                       </p>
                       <p className="text-xs text-gray-400">
-                        {item.new_customers.toLocaleString()} customers
+                        {Number(item?.new_customers || 0).toLocaleString()} customers
                       </p>
                     </CardContent>
                   </Card>
@@ -357,24 +357,24 @@ export function Dashboard() {
                       <div className="p-4 bg-blue-50 rounded-lg">
                         <p className="text-sm text-gray-600">Sides Attach Rate</p>
                         <p className="text-2xl font-bold text-blue-600">
-                          {attachRate[0]?.sides_attach_rate_pct?.toFixed(1) || 0}%
+                          {Number(attachRate[0]?.sides_attach_rate_pct || 0).toFixed(1)}%
                         </p>
                       </div>
                       <div className="p-4 bg-green-50 rounded-lg">
                         <p className="text-sm text-gray-600">Beverage Attach Rate</p>
                         <p className="text-2xl font-bold text-green-600">
-                          {attachRate[0]?.beverage_attach_rate_pct?.toFixed(1) || 0}%
+                          {Number(attachRate[0]?.beverage_attach_rate_pct || 0).toFixed(1)}%
                         </p>
                       </div>
                       <div className="p-4 bg-purple-50 rounded-lg">
                         <p className="text-sm text-gray-600">Dessert Attach Rate</p>
                         <p className="text-2xl font-bold text-purple-600">
-                          {attachRate[0]?.dessert_attach_rate_pct?.toFixed(1) || 0}%
+                          {Number(attachRate[0]?.dessert_attach_rate_pct || 0).toFixed(1)}%
                         </p>
                       </div>
                     </div>
                     <p className="text-sm text-gray-500 mt-2">
-                      Based on {attachRate[0]?.total_orders?.toLocaleString()} orders
+                      Based on {Number(attachRate[0]?.total_orders || 0).toLocaleString()} orders
                       {segment !== "all" && ` for ${segment} segment`}
                     </p>
                   </>
@@ -408,8 +408,9 @@ export function Dashboard() {
                 {/* Channel metrics grid */}
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                   {channelBreakdown?.map((ch) => {
-                    const totalRevenue = channelBreakdown.reduce((sum, item) => sum + (item?.revenue || 0), 0);
-                    const percentage = totalRevenue > 0 ? ((ch.revenue / totalRevenue) * 100).toFixed(1) : '0.0';
+                    const totalRevenue = channelBreakdown.reduce((sum, item) => sum + Number(item?.revenue || 0), 0);
+                    const chRevenue = Number(ch?.revenue || 0);
+                    const percentage = totalRevenue > 0 ? ((chRevenue / totalRevenue) * 100).toFixed(1) : '0.0';
 
                     return (
                       <Card key={ch.channel}>
@@ -420,7 +421,7 @@ export function Dashboard() {
                         </CardHeader>
                         <CardContent>
                           <div className="text-2xl font-bold">
-                            ${((ch?.revenue || 0) / 1000).toFixed(0)}K
+                            ${(chRevenue / 1000).toFixed(0)}K
                           </div>
                           <p className="text-xs text-gray-500 mt-1">
                             {percentage}% of total
@@ -466,10 +467,10 @@ export function Dashboard() {
                         ${(item?.arpu || 0).toLocaleString()}
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
-                        {(item?.customer_count || 0).toLocaleString()} customers
+                        {Number(item?.customer_count || 0).toLocaleString()} customers
                       </p>
                       <p className="text-xs text-gray-400">
-                        {(item?.avg_orders_per_customer || 0).toFixed(1)} orders/year
+                        {Number(item?.avg_orders_per_customer || 0).toFixed(1)} orders/year
                       </p>
                     </CardContent>
                   </Card>
