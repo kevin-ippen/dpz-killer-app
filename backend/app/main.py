@@ -61,21 +61,24 @@ app.include_router(chat.router, prefix=settings.API_PREFIX)
 # Root Endpoints
 # ============================================================================
 
-@app.get("/")
-async def root():
-    """
-    Root endpoint
+# Root endpoint will be defined later if frontend exists
+# Otherwise define API info endpoint here
+_frontend_dist = os.path.join(os.path.dirname(__file__), "../../frontend/dist")
+if not os.path.exists(_frontend_dist):
+    @app.get("/")
+    async def root():
+        """
+        Root endpoint
 
-    When deployed as Databricks App with frontend build, this will serve
-    the React app's index.html. During development, returns API info.
-    """
-    return {
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "status": "running",
-        "environment": settings.ENVIRONMENT,
-        "docs": f"{settings.API_PREFIX}/docs"
-    }
+        Returns API info when frontend is not built.
+        """
+        return {
+            "app": settings.APP_NAME,
+            "version": settings.APP_VERSION,
+            "status": "running",
+            "environment": settings.ENVIRONMENT,
+            "docs": f"{settings.API_PREFIX}/docs"
+        }
 
 
 @app.get("/health")
@@ -168,23 +171,25 @@ if os.path.exists(frontend_dist):
 
     logger.info(f"Serving frontend from: {frontend_dist}")
 
-    # Serve index.html for all non-API routes (SPA routing)
-    # This MUST be defined last, after all API routes
-    @app.get("/{full_path:path}", include_in_schema=False)
-    async def serve_frontend(full_path: str = ""):
+    # Serve React app at root
+    @app.get("/")
+    async def serve_root():
+        """Serve React app at root"""
+        index_path = os.path.join(frontend_dist, "index.html")
+        return FileResponse(index_path)
+
+    # Catch-all route for React Router (SPA routing)
+    # This will match any path that doesn't have a more specific route
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
         """
         Serve React app for all non-API routes
 
         This enables client-side routing in the React app.
-        All routes that don't match /api/* or /health will serve index.html.
+        More specific routes (like /api/* and /health) will match first.
         """
-        # Skip if this is an API route (should be handled by other routes)
-        if full_path and (full_path.startswith("api") or full_path == "health"):
-            raise HTTPException(status_code=404, detail="Not found")
-
-        # Serve index.html for root and all React Router paths
         index_path = os.path.join(frontend_dist, "index.html")
-        return FileResponse(index_path, media_type="text/html")
+        return FileResponse(index_path)
 
 else:
     logger.warning(f"Frontend dist directory not found: {frontend_dist}")
