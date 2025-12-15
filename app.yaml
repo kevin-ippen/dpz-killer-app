@@ -13,24 +13,19 @@ command: ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "800
 #   memory: "2Gi"
 #   cpu: "1"
 
-# Unity Catalog permissions (optional)
+# Unity Catalog permissions
 # Grant the app service principal access to UC resources
-# resources:
-#   uc_securable:
-#     # Grant READ access to specific tables
-#     - securable_type: TABLE
-#       securable_full_name: main.default.my_table
-#       privilege: SELECT
-#
-#     # Grant READ access to volumes for file serving
-#     - securable_type: VOLUME
-#       securable_full_name: main.default.my_volume
-#       privilege: READ_VOLUME
-#
-#     # Grant access to Model Serving endpoints
-#     - securable_type: SERVING_ENDPOINT
-#       securable_full_name: my_embedding_model
-#       privilege: EXECUTE
+resources:
+  uc_securable:
+    # Grant READ access to dominos_analytics schema
+    - securable_type: SCHEMA
+      securable_full_name: main.dominos_analytics
+      privilege: SELECT
+
+    # Grant READ access to dominos_realistic schema
+    - securable_type: SCHEMA
+      securable_full_name: main.dominos_realistic
+      privilege: SELECT
 
 # Environment variables
 # Databricks auto-injects these variables for authentication
@@ -39,16 +34,9 @@ env:
     value: ${workspace.host}
   - name: DATABRICKS_TOKEN
     value: ${workspace.token}
-
-# Note: Add DATABRICKS_HTTP_PATH manually or via secrets
-# Options:
-# 1. Add directly (not recommended for security):
-#   - name: DATABRICKS_HTTP_PATH
-#     value: /sql/1.0/warehouses/your-warehouse-id
-#
-# 2. Use Databricks Secrets (recommended):
-#   - name: DATABRICKS_HTTP_PATH
-#     valueFrom:
-#       secretKeyRef:
-#         name: databricks-config
-#         key: http_path
+  - name: DATABRICKS_HTTP_PATH
+    value: /sql/1.0/warehouses/148ccb90800933a1
+  - name: CATALOG
+    value: main
+  - name: SCHEMA
+    value: dominos_analytics
