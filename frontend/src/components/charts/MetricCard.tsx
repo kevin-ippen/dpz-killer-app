@@ -20,7 +20,6 @@ export function MetricCard({
   format = "number",
   delta,
   sparkline,
-  loading = false,
 }: MetricCardProps) {
   const formatValue = (val: number) => {
     switch (format) {

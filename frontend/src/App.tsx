@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, keepPreviousData } from '@tanstack/react-query';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Dashboard } from '@/pages/Dashboard';
 import { Chat } from '@/pages/Chat';
@@ -14,12 +14,12 @@ const queryClient = new QueryClient({
       // Stale-while-revalidate: show cached data immediately
       staleTime: 60 * 1000, // 60 seconds
       // Keep previous data when refetching - no loading states!
-      placeholderData: (previousData) => previousData,
+      placeholderData: keepPreviousData,
       // Don't refetch on every window focus
       refetchOnWindowFocus: false,
       // Retry with exponential backoff
       retry: 2,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
     },
   },
 });
