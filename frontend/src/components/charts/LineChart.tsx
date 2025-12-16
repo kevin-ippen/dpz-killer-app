@@ -8,9 +8,12 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  ReferenceDot,
 } from "recharts";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatNumber } from "@/lib/utils";
+import { Anomaly } from "@/lib/anomalyDetection";
+import { AlertTriangle } from "lucide-react";
 
 interface LineChartProps {
   title: string;
@@ -20,6 +23,8 @@ interface LineChartProps {
   colors?: string[];
   format?: "currency" | "number";
   isLoading?: boolean;
+  anomalies?: Anomaly[];
+  showAnomalies?: boolean;
 }
 
 const defaultColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
@@ -32,6 +37,8 @@ export function LineChart({
   colors = defaultColors,
   format = "number",
   isLoading = false,
+  anomalies = [],
+  showAnomalies = true,
 }: LineChartProps) {
   // Calculate dynamic domain based on data
   const yDomain = useMemo(() => {
@@ -125,8 +132,80 @@ export function LineChart({
                 activeDot={{ r: 4 }}
               />
             ))}
+            {/* Anomaly Markers */}
+            {showAnomalies && anomalies && anomalies.length > 0 && (
+              <>
+                {anomalies.map((anomaly, idx) => {
+                  if (!data[anomaly.index]) return null;
+
+                  const anomalyColor =
+                    anomaly.severity === "high"
+                      ? "#ef4444"
+                      : anomaly.severity === "medium"
+                      ? "#f59e0b"
+                      : "#eab308";
+
+                  return (
+                    <ReferenceDot
+                      key={`anomaly-${idx}`}
+                      x={data[anomaly.index][xKey]}
+                      y={anomaly.value}
+                      r={8}
+                      fill={anomalyColor}
+                      stroke="white"
+                      strokeWidth={2}
+                      opacity={0.8}
+                      label={{
+                        value: "!",
+                        fill: "white",
+                        fontSize: 12,
+                        fontWeight: "bold",
+                      }}
+                    />
+                  );
+                })}
+              </>
+            )}
           </RechartsLineChart>
         </ResponsiveContainer>
+        )}
+        {/* Anomaly Legend */}
+        {showAnomalies && anomalies && anomalies.length > 0 && !isLoading && (
+          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm">
+                <p className="font-semibold text-amber-900 mb-2">
+                  {anomalies.length} Anomal{anomalies.length === 1 ? "y" : "ies"} Detected
+                </p>
+                <div className="space-y-1 text-amber-800">
+                  {anomalies.slice(0, 3).map((anomaly, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{
+                          backgroundColor:
+                            anomaly.severity === "high"
+                              ? "#ef4444"
+                              : anomaly.severity === "medium"
+                              ? "#f59e0b"
+                              : "#eab308",
+                        }}
+                      />
+                      <span className="text-xs">
+                        {data[anomaly.index]?.[xKey]}: {anomaly.reason}
+                      </span>
+                    </div>
+                  ))}
+                  {anomalies.length > 3 && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      +{anomalies.length - 3} more anomalies
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

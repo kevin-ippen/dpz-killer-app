@@ -19,9 +19,12 @@ import { Calendar } from "lucide-react";
 import { MetricTooltip } from "@/components/MetricTooltip";
 import { FilterPills } from "@/components/FilterPills";
 import { InsightsPanel } from "@/components/InsightsPanel";
+import { ForecastChart } from "@/components/charts/ForecastChart";
 import { filterCompleteMonths, getDateRangeLabel } from "@/lib/utils";
 import { generateInsights } from "@/lib/generateInsights";
 import { exportToCSV, exportToJSON } from "@/lib/exportData";
+import { detectAnomalies, detectSpikesAndDrops } from "@/lib/anomalyDetection";
+import { generateForecast } from "@/lib/forecasting";
 import { Download } from "lucide-react";
 
 export function Dashboard() {
@@ -251,6 +254,30 @@ export function Dashboard() {
     });
   }, [cacByChannel, arpuBySegment, completeGmvTrend, attachRate, channelBreakdown]);
 
+  // Detect anomalies in revenue trend
+  const revenueAnomalies = useMemo(() => {
+    if (!completeRevenueTrend || completeRevenueTrend.length < 5) return [];
+    return detectAnomalies(completeRevenueTrend, "revenue", {
+      sensitivity: 2,
+      windowSize: 3,
+    });
+  }, [completeRevenueTrend]);
+
+  // Detect anomalies in GMV trend
+  const gmvAnomalies = useMemo(() => {
+    if (!completeGmvTrend || completeGmvTrend.length < 5) return [];
+    return detectSpikesAndDrops(completeGmvTrend, "gmv", 25);
+  }, [completeGmvTrend]);
+
+  // Generate revenue forecast
+  const revenueForecast = useMemo(() => {
+    if (!completeRevenueTrend || completeRevenueTrend.length < 6) return [];
+    return generateForecast(completeRevenueTrend, "revenue", "month", {
+      periods: 3,
+      confidence: 0.95,
+    });
+  }, [completeRevenueTrend]);
+
   // Export handler
   const handleExport = (format: "csv" | "json") => {
     const exportData = {
@@ -471,16 +498,18 @@ export function Dashboard() {
           {/* AI-Generated Insights */}
           <InsightsPanel insights={insights} />
 
-          {/* Trend Charts */}
+          {/* Trend Charts with Anomaly Detection */}
           <div className="grid gap-6 lg:grid-cols-2">
             <LineChart
-              title="Revenue Trend (Complete Months Only)"
+              title="Revenue Trend with Anomaly Detection"
               data={completeRevenueTrend || []}
               xKey="month"
               yKeys={["revenue"]}
               colors={["#3b82f6"]}
               format="currency"
               isLoading={trendLoading}
+              anomalies={revenueAnomalies}
+              showAnomalies={true}
             />
             <LineChart
               title="Orders Trend (Complete Months Only)"
@@ -492,6 +521,19 @@ export function Dashboard() {
               isLoading={trendLoading}
             />
           </div>
+
+          {/* Revenue Forecast */}
+          {revenueForecast && revenueForecast.length > 0 && (
+            <ForecastChart
+              title="Revenue Forecast (Next 3 Months)"
+              historicalData={completeRevenueTrend || []}
+              forecastData={revenueForecast}
+              xKey="month"
+              yKey="revenue"
+              format="currency"
+              isLoading={trendLoading}
+            />
+          )}
 
           {/* Channel Breakdown */}
           <div className="grid gap-6">
@@ -785,13 +827,15 @@ export function Dashboard() {
             <CardContent>
               <div className="space-y-6">
                 <LineChart
-                  title="GMV vs Net Revenue (Complete Months)"
+                  title="GMV vs Net Revenue with Anomaly Detection"
                   data={completeGmvTrend || []}
                   xKey="month"
                   yKeys={["gmv", "net_revenue"]}
                   colors={["#3b82f6", "#10b981"]}
                   format="currency"
                   isLoading={gmvLoading}
+                  anomalies={gmvAnomalies}
+                  showAnomalies={true}
                 />
 
                 {/* GMV vs Discount Rate Overlay */}
