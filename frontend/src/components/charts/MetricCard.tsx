@@ -34,16 +34,16 @@ export function MetricCard({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm font-medium text-gray-600">
+    <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300 bg-gradient-to-br from-white to-gray-50">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-xs font-semibold uppercase tracking-wider text-gray-500">
           {label}
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2">
+        <div className="space-y-3">
           {/* Main Value */}
-          <div className="text-3xl font-bold text-gray-900">
+          <div className="text-4xl font-bold tracking-tight bg-gradient-to-r from-[#006491] to-[#0B8CCC] bg-clip-text text-transparent">
             {formatValue(value)}
           </div>
 
@@ -51,8 +51,8 @@ export function MetricCard({
           {delta && (
             <div
               className={cn(
-                "flex items-center gap-1 text-sm font-medium",
-                delta.isPositive ? "text-green-600" : "text-red-600"
+                "flex items-center gap-1.5 text-sm font-semibold",
+                delta.isPositive ? "text-[#0B8CCC]" : "text-[#E31837]"
               )}
             >
               {delta.isPositive ? (
@@ -61,7 +61,7 @@ export function MetricCard({
                 <ArrowDown className="h-4 w-4" />
               )}
               <span>{formatPercent(Math.abs(delta.value))}</span>
-              <span className="text-gray-500">vs last period</span>
+              <span className="text-gray-400 font-normal">vs last period</span>
             </div>
           )}
 
@@ -92,16 +92,23 @@ export function MetricCard({
             }).join(" ");
 
             return (
-              <div className="h-12 w-full">
+              <div className="h-12 w-full rounded-lg overflow-hidden">
                 <svg
                   className="h-full w-full"
                   viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
                   preserveAspectRatio="none"
                 >
+                  {/* Gradient definition */}
+                  <defs>
+                    <linearGradient id="sparklineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor={delta?.isPositive ? "#0B8CCC" : "#E31837"} />
+                      <stop offset="100%" stopColor={delta?.isPositive ? "#006491" : "#C41230"} />
+                    </linearGradient>
+                  </defs>
                   <polyline
                     fill="none"
-                    stroke={delta?.isPositive ? "#16a34a" : "#dc2626"}
-                    strokeWidth="1"
+                    stroke="url(#sparklineGradient)"
+                    strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     points={points}

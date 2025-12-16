@@ -22,7 +22,8 @@ interface BarChartProps {
   isLoading?: boolean;
 }
 
-const defaultColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
+// Domino's brand color palette
+const defaultColors = ["#0B8CCC", "#E31837", "#006491", "#64748B"];
 
 export function BarChart({
   title,

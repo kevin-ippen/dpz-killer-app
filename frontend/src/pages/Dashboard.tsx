@@ -305,13 +305,15 @@ export function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 p-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pb-6 border-b-2 border-[#0B8CCC]">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="mt-2 text-gray-600">
-            Overview of your Domino's performance metrics
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-[#006491] to-[#0B8CCC] bg-clip-text text-transparent">
+            Analytics Dashboard
+          </h1>
+          <p className="mt-2 text-lg text-gray-600 font-medium">
+            Domino's Performance Insights & Predictive Analytics
           </p>
         </div>
 
@@ -366,7 +368,7 @@ export function Dashboard() {
               variant="outline"
               size="sm"
               onClick={() => handleExport("csv")}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 border-[#0B8CCC] text-[#006491] hover:bg-[#E6F3F9] hover:border-[#006491] font-semibold"
             >
               <Download className="h-4 w-4" />
               Export CSV
@@ -375,7 +377,7 @@ export function Dashboard() {
               variant="outline"
               size="sm"
               onClick={() => handleExport("json")}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 border-[#0B8CCC] text-[#006491] hover:bg-[#E6F3F9] hover:border-[#006491] font-semibold"
             >
               <Download className="h-4 w-4" />
               Export JSON
@@ -385,9 +387,9 @@ export function Dashboard() {
       </div>
 
       {/* Phase 3: Advanced Filters Row */}
-      <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
+      <div className="flex items-center justify-between bg-gradient-to-r from-[#E6F3F9] to-white p-5 rounded-xl border border-[#CCE7F3] shadow-sm">
         <div className="flex items-center gap-4 flex-wrap">
-          <span className="text-sm font-medium text-gray-700">Advanced Filters:</span>
+          <span className="text-sm font-bold text-[#006491]">Advanced Filters:</span>
 
           {/* Time Grain Selector */}
           <div className="flex items-center gap-2">
