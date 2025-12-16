@@ -34,16 +34,16 @@ export function MetricCard({
   };
 
   return (
-    <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-300 bg-gradient-to-br from-white to-gray-50">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+    <Card className="border border-[#F8F3E9] shadow-md hover:shadow-2xl transition-all duration-300 bg-white/80 backdrop-blur-sm">
+      <CardHeader className="pb-4">
+        <CardTitle className="text-[10px] font-medium uppercase tracking-[0.15em] text-[#B59D81]">
           {label}
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-3">
+        <div className="space-y-4">
           {/* Main Value */}
-          <div className="text-4xl font-bold tracking-tight bg-gradient-to-r from-[#006491] to-[#0B8CCC] bg-clip-text text-transparent">
+          <div className="text-[2.75rem] font-light tracking-tight bg-gradient-to-br from-[#2F7FD9] to-[#2666B1] bg-clip-text text-transparent leading-none">
             {formatValue(value)}
           </div>
 
@@ -51,17 +51,17 @@ export function MetricCard({
           {delta && (
             <div
               className={cn(
-                "flex items-center gap-1.5 text-sm font-semibold",
-                delta.isPositive ? "text-[#0B8CCC]" : "text-[#E31837]"
+                "flex items-center gap-2 text-sm font-medium",
+                delta.isPositive ? "text-[#2F7FD9]" : "text-[#EC3115]"
               )}
             >
               {delta.isPositive ? (
-                <ArrowUp className="h-4 w-4" />
+                <ArrowUp className="h-3.5 w-3.5" />
               ) : (
-                <ArrowDown className="h-4 w-4" />
+                <ArrowDown className="h-3.5 w-3.5" />
               )}
-              <span>{formatPercent(Math.abs(delta.value))}</span>
-              <span className="text-gray-400 font-normal">vs last period</span>
+              <span className="font-semibold">{formatPercent(Math.abs(delta.value))}</span>
+              <span className="text-[#B59D81] font-light text-xs">vs last period</span>
             </div>
           )}
 
@@ -92,7 +92,7 @@ export function MetricCard({
             }).join(" ");
 
             return (
-              <div className="h-12 w-full rounded-lg overflow-hidden">
+              <div className="h-14 w-full rounded-lg overflow-hidden mt-2">
                 <svg
                   className="h-full w-full"
                   viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
@@ -101,17 +101,18 @@ export function MetricCard({
                   {/* Gradient definition */}
                   <defs>
                     <linearGradient id="sparklineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor={delta?.isPositive ? "#0B8CCC" : "#E31837"} />
-                      <stop offset="100%" stopColor={delta?.isPositive ? "#006491" : "#C41230"} />
+                      <stop offset="0%" stopColor={delta?.isPositive ? "#2F7FD9" : "#EC3115"} />
+                      <stop offset="100%" stopColor={delta?.isPositive ? "#1D4D83" : "#D42C13"} />
                     </linearGradient>
                   </defs>
                   <polyline
                     fill="none"
                     stroke="url(#sparklineGradient)"
-                    strokeWidth="2"
+                    strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     points={points}
+                    opacity="0.8"
                   />
                 </svg>
               </div>

@@ -305,14 +305,14 @@ export function Dashboard() {
   };
 
   return (
-    <div className="space-y-8 p-6">
+    <div className="space-y-10 p-8">
       {/* Page Header */}
-      <div className="flex items-center justify-between pb-6 border-b-2 border-[#0B8CCC]">
+      <div className="flex items-center justify-between pb-8 border-b border-[#F8F3E9]">
         <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-[#006491] to-[#0B8CCC] bg-clip-text text-transparent">
+          <h1 className="text-5xl font-light tracking-tight bg-gradient-to-r from-[#2F7FD9] via-[#2666B1] to-[#1D4D83] bg-clip-text text-transparent">
             Analytics Dashboard
           </h1>
-          <p className="mt-2 text-lg text-gray-600 font-medium">
+          <p className="mt-3 text-base text-[#B59D81] font-light tracking-wide">
             Domino's Performance Insights & Predictive Analytics
           </p>
         </div>
@@ -363,23 +363,23 @@ export function Dashboard() {
             </SelectContent>
           </Select>
 
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <Button
               variant="outline"
               size="sm"
               onClick={() => handleExport("csv")}
-              className="flex items-center gap-2 border-[#0B8CCC] text-[#006491] hover:bg-[#E6F3F9] hover:border-[#006491] font-semibold"
+              className="flex items-center gap-2 border-[#2F7FD9] text-[#2666B1] hover:bg-[#EBF4FD] hover:border-[#2666B1] font-medium transition-all"
             >
-              <Download className="h-4 w-4" />
+              <Download className="h-3.5 w-3.5" />
               Export CSV
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => handleExport("json")}
-              className="flex items-center gap-2 border-[#0B8CCC] text-[#006491] hover:bg-[#E6F3F9] hover:border-[#006491] font-semibold"
+              className="flex items-center gap-2 border-[#2F7FD9] text-[#2666B1] hover:bg-[#EBF4FD] hover:border-[#2666B1] font-medium transition-all"
             >
-              <Download className="h-4 w-4" />
+              <Download className="h-3.5 w-3.5" />
               Export JSON
             </Button>
           </div>
@@ -387,9 +387,9 @@ export function Dashboard() {
       </div>
 
       {/* Phase 3: Advanced Filters Row */}
-      <div className="flex items-center justify-between bg-gradient-to-r from-[#E6F3F9] to-white p-5 rounded-xl border border-[#CCE7F3] shadow-sm">
-        <div className="flex items-center gap-4 flex-wrap">
-          <span className="text-sm font-bold text-[#006491]">Advanced Filters:</span>
+      <div className="flex items-center justify-between bg-gradient-to-r from-[#FDFAF5] via-[#FBF7F0] to-white p-6 rounded-2xl border border-[#F8F3E9] shadow-sm">
+        <div className="flex items-center gap-5 flex-wrap">
+          <span className="text-xs font-medium uppercase tracking-wider text-[#B59D81]">Advanced Filters</span>
 
           {/* Time Grain Selector */}
           <div className="flex items-center gap-2">
