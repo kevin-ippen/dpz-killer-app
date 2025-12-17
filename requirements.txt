@@ -1,5 +1,5 @@
-# FastAPI and server
-fastapi==0.109.0
+# FastAPI and server (version constrained by Chainlit)
+fastapi==0.100.1
 uvicorn[standard]==0.27.0
 
 # Data validation and settings
