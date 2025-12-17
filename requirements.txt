@@ -1,6 +1,6 @@
 # FastAPI and server (version constrained by Chainlit)
 fastapi==0.100.1
-uvicorn[standard]==0.27.0
+uvicorn[standard]==0.23.2
 
 # Data validation and settings
 pydantic==2.5.3
