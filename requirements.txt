@@ -10,8 +10,8 @@ pydantic-settings==2.1.0
 databricks-sdk==0.20.0
 databricks-sql-connector==3.0.0
 
-# HTTP client for API calls
-httpx==0.26.0
+# HTTP client for API calls (version constrained by Chainlit)
+httpx==0.24.1
 
 # File upload support
 python-multipart==0.0.6
