@@ -13,16 +13,26 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Add backend and chat-app directories to Python path
-backend_path = os.path.join(os.path.dirname(__file__), 'backend')
-chat_app_path = os.path.join(os.path.dirname(__file__), 'chat-app')
+# Get absolute paths
+script_dir = os.path.dirname(os.path.abspath(__file__))
+backend_path = os.path.join(script_dir, 'backend')
+chat_app_path = os.path.join(script_dir, 'chat-app')
 
+# Add to Python path if not already there
 for path in [backend_path, chat_app_path]:
     if path not in sys.path:
         sys.path.insert(0, path)
+        logger.info(f"Added to Python path: {path}")
 
 # Import the FastAPI backend app
-from app.main import app as backend_app
+try:
+    from app.main import app as backend_app
+    logger.info("✅ Backend app imported successfully")
+except ImportError as e:
+    logger.error(f"❌ Failed to import backend app: {e}")
+    logger.error(f"   sys.path: {sys.path}")
+    logger.error(f"   backend_path exists: {os.path.exists(backend_path)}")
+    raise
 
 # Try to import and mount Chainlit app
 try:
