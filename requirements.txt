@@ -29,8 +29,8 @@ chainlit==1.0.0
 # JWT for token validation
 pyjwt==2.8.0
 
-# Starlette for app mounting
-starlette>=0.35.0
+# Starlette for app mounting (version constrained by FastAPI 0.100.1)
+starlette==0.27.0
 
 # Optional: Add based on your needs
 # numpy==1.26.3
