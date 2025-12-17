@@ -2,7 +2,7 @@
 Identity and authentication models for OBO (On-Behalf-Of) auth
 """
 from pydantic import BaseModel, Field
-from typing import Protocol, Dict, Callable
+from typing import Protocol, Dict, Callable, Any
 
 
 class TokenSource(Protocol):
@@ -10,7 +10,7 @@ class TokenSource(Protocol):
     def bearer_token(self) -> str: ...
 
 
-class OboTokenSource(TokenSource):
+class OboTokenSource:
     """
     OBO token source that extracts token from Databricks App headers
 
@@ -38,7 +38,8 @@ class Identity(BaseModel):
     display_name: str
     # Token source for obtaining bearer tokens
     # Using Field(repr=False) prevents tokens from appearing in logs
-    token_source: TokenSource = Field(repr=False, exclude=True)
+    # Type Any is used since TokenSource is a Protocol and can't be used directly in Pydantic
+    token_source: Any = Field(repr=False)
 
     class Config:
-        arbitrary_types_allowed = True  # Allow Protocol types
+        arbitrary_types_allowed = True  # Allow arbitrary types
