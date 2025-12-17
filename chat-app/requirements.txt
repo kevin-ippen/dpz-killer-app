@@ -1,0 +1,18 @@
+# Chainlit - Chat UI framework
+chainlit==1.0.0
+
+# Databricks SDK (for workspace client if needed)
+databricks-sdk>=0.18.0
+
+# HTTP client for MAS streaming
+httpx>=0.25.0
+
+# JWT for token validation
+pyjwt>=2.8.0
+
+# Settings management
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Logging
+python-dotenv>=1.0.0

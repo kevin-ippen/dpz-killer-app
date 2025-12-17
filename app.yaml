@@ -32,6 +32,11 @@ resources:
       securable_full_name: databricks-gpt-oss-120b
       privilege: EXECUTE
 
+    # Grant access to MAS endpoint for Genie Spaces routing
+    - securable_type: SERVING_ENDPOINT
+      securable_full_name: mas-3d3b5439-endpoint
+      privilege: EXECUTE
+
 # Environment variables
 # Note: DATABRICKS_HOST and DATABRICKS_TOKEN are automatically injected by Databricks Apps
 # Do NOT explicitly define them here - Databricks Apps will handle authentication automatically
@@ -44,3 +49,5 @@ env:
     value: dominos_analytics
   - name: LLM_MODEL_NAME
     value: databricks-gpt-oss-120b
+  - name: MAS_ENDPOINT_NAME
+    value: mas-3d3b5439-endpoint
