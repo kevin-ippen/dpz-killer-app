@@ -14,6 +14,7 @@ import { ChatMessage, ActiveBlockRef, TextBlock } from "@/types/chat";
 import { ResultCanvas } from "@/components/chat/ResultCanvas";
 import { ChartPreview, TablePreview, ImagePreview } from "@/components/chat/BlockPreviews";
 import { MarkdownRenderer } from "@/components/chat/MarkdownRenderer";
+import { parseMessageBlocks } from "@/utils/parseMessageBlocks";
 
 export function Chat() {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -304,6 +305,21 @@ I can help you analyze your business data across:
     } finally {
       setIsStreaming(false);
       abortControllerRef.current = null;
+
+      // Parse final content into blocks (extract tables, etc.)
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id !== assistantMessageId) return msg;
+
+          // Parse content into structured blocks
+          const { blocks } = parseMessageBlocks(msg.content, assistantMessageId);
+
+          return {
+            ...msg,
+            blocks: blocks.length > 0 ? blocks : msg.blocks,
+          };
+        })
+      );
     }
   };
 
