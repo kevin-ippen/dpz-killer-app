@@ -14,9 +14,6 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Set CHAINLIT_ROOT_PATH BEFORE any chainlit imports
-os.environ["CHAINLIT_ROOT_PATH"] = "/chat"
-
 # Add backend directory to Python path
 backend_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backend')
 sys.path.insert(0, backend_path)
@@ -54,33 +51,7 @@ app.add_middleware(
 )
 
 # ============================================================================
-# 1. MOUNT CHAINLIT FIRST (most specific route)
-# ============================================================================
-try:
-    chat_app_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'chat-app')
-    sys.path.insert(0, chat_app_path)
-
-    # Import Chainlit (after CHAINLIT_ROOT_PATH is set and backend modules imported)
-    import chainlit as cl
-
-    # Import the chat app module to initialize Chainlit handlers
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("chainlit_app", os.path.join(chat_app_path, 'app.py'))
-    chat_app_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(chat_app_module)
-
-    # Get Chainlit's ASGI app
-    from chainlit.server import app as chainlit_asgi_app
-
-    # Mount Chainlit at /chat (handles both /chat and /chat/ paths)
-    app.mount("/chat", chainlit_asgi_app, name="chat")
-
-    logger.info("✅ Chainlit mounted at /chat")
-except Exception as e:
-    logger.error(f"❌ Could not mount Chainlit: {e}")
-
-# ============================================================================
-# 2. INCLUDE BACKEND API ROUTES
+# 1. INCLUDE BACKEND API ROUTES FIRST
 # ============================================================================
 
 # Include API routers under /api prefix
@@ -153,6 +124,36 @@ if os.path.exists(frontend_dist):
 else:
     logger.warning(f"❌ Frontend dist directory not found: {frontend_dist}")
     logger.info("Run 'npm run build' in frontend directory to build the frontend")
+
+# ============================================================================
+# MOUNT CHAINLIT LAST (after all routes including catch-all are defined)
+# ============================================================================
+try:
+    chat_app_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'chat-app')
+    sys.path.insert(0, chat_app_path)
+
+    # Import Chainlit (after CHAINLIT_ROOT_PATH is set and backend modules imported)
+    import chainlit as cl
+
+    # Import the chat app module to initialize Chainlit handlers
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("chainlit_app", os.path.join(chat_app_path, 'app.py'))
+    chat_app_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(chat_app_module)
+
+    # Get Chainlit's ASGI app
+    from chainlit.server import app as chainlit_asgi_app
+
+    # Mount Chainlit at /chat
+    # Note: Mounting after route definitions ensures the mount takes precedence
+    # over the SPA catch-all route
+    app.mount("/chat", chainlit_asgi_app, name="chat")
+
+    logger.info("✅ Chainlit mounted at /chat")
+except Exception as e:
+    logger.error(f"❌ Could not mount Chainlit: {e}")
+    import traceback
+    logger.error(traceback.format_exc())
 
 # ============================================================================
 # APPLICATION LIFECYCLE EVENTS
