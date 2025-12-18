@@ -196,14 +196,62 @@ class MASStreamingClient:
 
                             try:
                                 event = json.loads(data)
-                                logger.info(f"[MAS] Event keys: {list(event.keys())}")
-                                logger.info(f"[MAS] Full event: {json.dumps(event)[:500]}")
+                                event_type = event.get("type", "")
 
-                                # Try OpenAI-compatible format first (choices array)
-                                if "choices" in event and event["choices"]:
+                                logger.debug(f"[MAS] Event type: {event_type}")
+
+                                # MAS Response format: response.output_text.delta
+                                if event_type == "response.output_text.delta":
+                                    delta = event.get("delta", "")
+                                    if delta:
+                                        logger.info(f"[MAS] Text delta: {delta[:50]}")
+                                        yield {
+                                            "type": "text.delta",
+                                            "delta": delta
+                                        }
+
+                                # MAS Response format: response.output_item.done
+                                elif event_type == "response.output_item.done":
+                                    item = event.get("item", {})
+                                    item_type = item.get("type", "")
+
+                                    # Function call (tool/agent invocation)
+                                    if item_type == "function_call":
+                                        tool_name = item.get("name", "unknown")
+                                        logger.info(f"[MAS] Tool call completed: {tool_name}")
+                                        yield {
+                                            "type": "tool.call",
+                                            "name": tool_name,
+                                            "args": item.get("arguments", {})
+                                        }
+
+                                    # Message with content
+                                    elif "content" in item:
+                                        content_items = item.get("content", [])
+                                        if isinstance(content_items, list):
+                                            for content_item in content_items:
+                                                if isinstance(content_item, dict) and "text" in content_item:
+                                                    text = content_item["text"]
+                                                    logger.info(f"[MAS] Item text: {text[:50]}")
+                                                    yield {
+                                                        "type": "text.delta",
+                                                        "delta": text
+                                                    }
+
+                                # MAS Function result
+                                elif event_type == "response.function_call_result" or event_type == "response.tool_result":
+                                    result = event.get("result", {})
+                                    tool_name = result.get("name", "agent")
+                                    logger.info(f"[MAS] Tool result: {tool_name}")
+                                    yield {
+                                        "type": "tool.output",
+                                        "name": tool_name,
+                                        "output": str(result.get("output", "Complete"))
+                                    }
+
+                                # OpenAI-compatible format (fallback for other endpoints)
+                                elif "choices" in event and event["choices"]:
                                     choice = event["choices"][0]
-
-                                    # Text delta
                                     if "delta" in choice and "content" in choice["delta"]:
                                         content = choice["delta"]["content"]
                                         if content:
@@ -213,78 +261,14 @@ class MASStreamingClient:
                                                 "delta": content
                                             }
 
-                                    # Tool calls
-                                    if "delta" in choice and "tool_calls" in choice["delta"]:
-                                        for tool_call in choice["delta"]["tool_calls"]:
-                                            if "function" in tool_call and "name" in tool_call["function"]:
-                                                tool_name = tool_call["function"]["name"]
-                                                logger.info(f"[MAS] OpenAI tool call: {tool_name}")
-                                                yield {
-                                                    "type": "tool.call",
-                                                    "name": tool_name,
-                                                    "args": tool_call["function"].get("arguments", {})
-                                                }
+                                # Ignore these event types (just metadata)
+                                elif event_type in ["response.created", "response.done", "response.output_item.added"]:
+                                    logger.debug(f"[MAS] Metadata event: {event_type}")
+                                    pass
 
-                                # MAS Agent Framework format (event-based)
-                                elif "event" in event:
-                                    event_type = event["event"]
-                                    event_data = event.get("data", {})
-
-                                    logger.info(f"[MAS] Agent event type: {event_type}")
-
-                                    if event_type == "text" or event_type == "text_chunk":
-                                        # Text content from agent
-                                        text = event_data.get("text", "")
-                                        if text:
-                                            logger.info(f"[MAS] Agent text: {text[:50]}")
-                                            yield {
-                                                "type": "text.delta",
-                                                "delta": text
-                                            }
-
-                                    elif event_type == "agent_action" or event_type == "tool_call":
-                                        # Agent tool/space invocation
-                                        tool_name = event_data.get("name", event_data.get("tool", "unknown"))
-                                        logger.info(f"[MAS] Agent action: {tool_name}")
-                                        yield {
-                                            "type": "tool.call",
-                                            "name": tool_name,
-                                            "args": event_data.get("args", {})
-                                        }
-
-                                    elif event_type == "agent_response" or event_type == "tool_result":
-                                        # Tool/space result
-                                        tool_name = event_data.get("name", "agent")
-                                        logger.info(f"[MAS] Agent result: {tool_name}")
-                                        yield {
-                                            "type": "tool.output",
-                                            "name": tool_name,
-                                            "output": str(event_data.get("result", "Complete"))
-                                        }
-
-                                # Direct text/content field
-                                elif "text" in event:
-                                    text = event["text"]
-                                    if text:
-                                        logger.info(f"[MAS] Direct text: {text[:50]}")
-                                        yield {
-                                            "type": "text.delta",
-                                            "delta": text
-                                        }
-
-                                # Content field (common in some formats)
-                                elif "content" in event:
-                                    content = event["content"]
-                                    if content:
-                                        logger.info(f"[MAS] Content field: {content[:50]}")
-                                        yield {
-                                            "type": "text.delta",
-                                            "delta": content
-                                        }
-
-                                # If nothing matches, log it
+                                # Log unhandled events
                                 else:
-                                    logger.warning(f"[MAS] Unhandled event structure: {json.dumps(event)[:300]}")
+                                    logger.debug(f"[MAS] Unhandled event: {json.dumps(event)[:300]}")
 
                             except json.JSONDecodeError as e:
                                 logger.warning(f"[MAS] JSON decode error: {e}, data: {data[:200]}")
