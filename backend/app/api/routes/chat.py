@@ -83,35 +83,56 @@ class MASStreamingClient:
             logger.info(f"[MAS] Streaming from endpoint: {self.endpoint_name}")
             logger.info(f"[MAS] Message count: {len(input_messages)}")
 
-            # Use raw API call with correct MAS schema
+            # Use WorkspaceClient with correct payload format
             # MAS expects: {"input": [...messages...], "stream": true}
-            import httpx
+            # The SDK will handle authentication automatically in Databricks Apps
 
-            # Get databricks config
-            databricks_host = os.getenv("DATABRICKS_HOST")
-            databricks_token = os.getenv("DATABRICKS_TOKEN")
+            from databricks.sdk.service.serving import QueryEndpointInput
 
-            if not databricks_host or not databricks_token:
-                raise Exception("DATABRICKS_HOST or DATABRICKS_TOKEN not configured")
+            # Create the request using SDK's raw query method
+            # We need to use the API client directly to send the correct payload format
+            api_client = self.client.api_client
 
-            # Ensure host has https://
-            if not databricks_host.startswith("http"):
-                databricks_host = f"https://{databricks_host}"
+            # Construct the full endpoint URL
+            endpoint_url = f"/api/2.0/serving-endpoints/{self.endpoint_name}/invocations"
 
-            url = f"{databricks_host}/serving-endpoints/{self.endpoint_name}/invocations"
-            headers = {
-                "Authorization": f"Bearer {databricks_token}",
-                "Content-Type": "application/json"
-            }
+            # Prepare payload in MAS format
             payload = {
                 "input": input_messages,
                 "stream": True
             }
 
-            logger.info(f"[MAS] Calling endpoint: {url}")
+            logger.info(f"[MAS] Calling endpoint with payload format: input array")
+
+            # Use the API client's do method to make streaming request
+            import httpx
+            from databricks.sdk.core import ApiClient
+
+            # Get the configured API client's credentials
+            config = self.client.config
+
+            # Build full URL
+            if not config.host:
+                raise Exception("Databricks workspace host not configured")
+
+            host = config.host
+            if not host.startswith("http"):
+                host = f"https://{host}"
+
+            url = f"{host}{endpoint_url}"
+
+            # Get auth header from config
+            auth_header = config.authenticate()
+
+            logger.info(f"[MAS] Streaming from: {url}")
 
             async with httpx.AsyncClient(timeout=300.0) as client:
-                async with client.stream("POST", url, json=payload, headers=headers) as response:
+                async with client.stream(
+                    "POST",
+                    url,
+                    json=payload,
+                    headers={"Authorization": auth_header.get("Authorization", "")}
+                ) as response:
                     response.raise_for_status()
 
                     async for line in response.aiter_lines():
