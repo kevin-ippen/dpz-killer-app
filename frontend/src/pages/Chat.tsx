@@ -127,16 +127,27 @@ I can help you analyze your business data across:
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+        buffer = lines.pop() ?? "";
 
-        for (const line of lines) {
-          if (!line.trim() || !line.startsWith("data: ")) continue;
+        for (const raw of lines) {
+          const line = raw.trim();
 
-          const data = line.slice(6);
-          if (data === "[DONE]") continue;
+          // Skip empty lines (SSE frame separators)
+          if (!line) continue;
 
+          // Only process data: lines
+          if (!line.startsWith("data:")) continue;
+
+          const jsonStr = line.slice(5).trim(); // Remove "data:" prefix
+          if (jsonStr === "[DONE]") continue;
+
+          let event;
           try {
-            const event = JSON.parse(data);
+            event = JSON.parse(jsonStr);
+          } catch (e) {
+            console.warn("[SSE] Failed to parse event:", jsonStr, e);
+            continue;
+          }
 
             setMessages((prev) =>
               prev.map((msg) => {
@@ -183,9 +194,6 @@ I can help you analyze your business data across:
                 }
               })
             );
-          } catch (e) {
-            console.error("Failed to parse SSE event:", e);
-          }
         }
       }
     } catch (error: any) {
