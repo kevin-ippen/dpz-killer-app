@@ -305,14 +305,14 @@ export function Dashboard() {
   };
 
   return (
-    <div className="space-y-10 p-8">
+    <div className="space-y-8 p-8" style={{ background: 'var(--color-bg-app)', minHeight: '100vh' }}>
       {/* Page Header */}
-      <div className="flex items-center justify-between pb-8 border-b border-[#F8F3E9]">
+      <div className="flex items-center justify-between pb-6 border-b" style={{ borderColor: 'var(--color-border-subtle)' }}>
         <div>
-          <h1 className="text-5xl font-light tracking-tight bg-gradient-to-r from-[#2F7FD9] via-[#2666B1] to-[#1D4D83] bg-clip-text text-transparent">
-            Analytics Dashboard
+          <h1 className="text-4xl font-semibold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
+            🍕 Analytics Dashboard
           </h1>
-          <p className="mt-3 text-base text-[#B59D81] font-light tracking-wide">
+          <p className="mt-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
             Domino's Performance Insights & Predictive Analytics
           </p>
         </div>
@@ -320,7 +320,7 @@ export function Dashboard() {
         {/* Filters */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-gray-500" />
+            <Calendar className="h-4 w-4" style={{ color: 'var(--color-text-secondary)' }} />
             <Select value={dateRange} onValueChange={setDateRange}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select period" />
@@ -387,13 +387,21 @@ export function Dashboard() {
       </div>
 
       {/* Phase 3: Advanced Filters Row */}
-      <div className="flex items-center justify-between bg-gradient-to-r from-[#FDFAF5] via-[#FBF7F0] to-white p-6 rounded-2xl border border-[#F8F3E9] shadow-sm">
+      <div
+        className="flex items-center justify-between p-6"
+        style={{
+          background: 'rgba(15, 23, 42, 0.96)',
+          border: '1px solid var(--color-border-subtle)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--shadow-soft)',
+        }}
+      >
         <div className="flex items-center gap-5 flex-wrap">
-          <span className="text-xs font-medium uppercase tracking-wider text-[#B59D81]">Advanced Filters</span>
+          <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>Advanced Filters</span>
 
           {/* Time Grain Selector */}
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-600">Time Grain:</span>
+            <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Time Grain:</span>
             <Select value={timeGrain} onValueChange={setTimeGrain}>
               <SelectTrigger className="w-[140px] h-8 text-sm">
                 <SelectValue />
@@ -409,7 +417,7 @@ export function Dashboard() {
 
           {/* Comparison Mode */}
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-600">Compare:</span>
+            <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Compare:</span>
             <Select value={comparisonMode} onValueChange={setComparisonMode}>
               <SelectTrigger className="w-[180px] h-8 text-sm">
                 <SelectValue />
@@ -424,7 +432,7 @@ export function Dashboard() {
 
           {/* Preset Selector */}
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-600">Quick Preset:</span>
+            <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Quick Preset:</span>
             <Select value={selectedPreset} onValueChange={applyPreset}>
               <SelectTrigger className="w-[200px] h-8 text-sm">
                 <SelectValue placeholder="Select a preset" />
