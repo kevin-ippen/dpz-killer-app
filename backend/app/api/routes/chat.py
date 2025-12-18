@@ -16,6 +16,8 @@ from databricks.sdk import WorkspaceClient
 from app.services.llm_client import llm_client
 
 logger = logging.getLogger(__name__)
+# Enable debug logging for detailed MAS response inspection
+logger.setLevel(logging.DEBUG)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
