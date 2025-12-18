@@ -1,4 +1,3 @@
-import React from "react";
 import { ImageBlock } from "@/types/chat";
 import { ExternalLink } from "lucide-react";
 

@@ -1,4 +1,3 @@
-import React from "react";
 import { TableBlock } from "@/types/chat";
 import { Download } from "lucide-react";
 

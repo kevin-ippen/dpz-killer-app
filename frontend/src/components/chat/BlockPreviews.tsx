@@ -1,4 +1,3 @@
-import React from "react";
 import { ChartBlock, TableBlock, ImageBlock } from "@/types/chat";
 import { BarChart3, Table as TableIcon, Image as ImageIcon, Eye } from "lucide-react";
 

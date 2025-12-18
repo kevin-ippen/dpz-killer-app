@@ -1,4 +1,3 @@
-import React from "react";
 import { ChartBlock, TablePreviewData } from "@/types/chat";
 import {
   ResponsiveContainer,
@@ -20,7 +19,7 @@ interface ChartCardProps {
   error?: string | null;
 }
 
-export function ChartCard({ block, tablePreview, loading, error }: ChartCardProps) {
+export function ChartCard({ block, tablePreview }: ChartCardProps) {
   // If we have a spec, try to render it
   const renderChart = () => {
     if (!block.spec) {

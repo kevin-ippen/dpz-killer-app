@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { ChartBlock, TablePreviewData, ChartHydrationPayload } from "@/types/chat";
 import { ChartCard } from "./ChartCard";
 import { Loader2, AlertCircle } from "lucide-react";
