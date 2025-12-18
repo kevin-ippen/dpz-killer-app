@@ -1,0 +1,41 @@
+# Databricks App Configuration for Chainlit Chat
+# Deploy this as a separate app from the main dashboard
+
+# Run Chainlit directly (not mounted)
+command: ['chainlit', 'run', 'app.py', '--host', '0.0.0.0', '--port', '8000']
+
+# Environment variables
+env:
+  - name: MAS_ENDPOINT_NAME
+    value: "mas-3d3b5439-endpoint"
+
+  - name: DATABRICKS_HOST
+    value: "adb-984752964297111.11.azuredatabricks.net"
+
+  - name: CATALOG_NAME
+    value: "bi_hub"
+
+  - name: SCHEMA_NAME
+    value: "sales_analytics"
+
+# Grant access to MAS endpoint
+resources:
+  uc_securable:
+    - securable_type: SERVING_ENDPOINT
+      securable_full_name: mas-3d3b5439-endpoint
+      privilege: EXECUTE
+    - securable_type: SCHEMA
+      securable_full_name: bi_hub.sales_analytics
+      privilege: USE
+    - securable_type: CATALOG
+      securable_full_name: bi_hub
+      privilege: USE
+
+# OAuth2 API Scopes - Required for MAS endpoint access
+user_api_scopes:
+  - serving.serving-endpoints
+
+# Resource limits (optional)
+# resources:
+#   memory: "2Gi"
+#   cpu: "1"
