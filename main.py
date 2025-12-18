@@ -146,10 +146,10 @@ if os.path.exists(frontend_dist):
         return FileResponse(index_path)
 
     # ============================================================================
-    # 4. SPA FALLBACK (exclude /api, /chat, /assets, /health)
+    # 4. SPA FALLBACK (exclude /api, /assets, /health)
     # ============================================================================
     # NOTE: This catch-all route MUST be defined AFTER all mounts (especially /chat)
-    # Otherwise it will intercept requests before they reach the mounted apps
+    # The /chat mount above should intercept all /chat/* requests before they reach here
     @app.get("/{full_path:path}")
     async def spa_fallback(full_path: str):
         """
@@ -157,14 +157,14 @@ if os.path.exists(frontend_dist):
 
         Explicitly exclude:
         - /api/* - Backend API routes
-        - /chat/* - Chainlit app (should never reach here due to mount)
         - /assets/* - Static assets
         - /health - Health check
+        
+        Note: /chat/* is handled by the mount above and should never reach here
         """
         # These paths should be handled by other routes/mounts
-        # If we reach here, something is wrong with routing
+        # If we reach here for these paths, something is wrong with routing
         if (full_path.startswith("api/") or
-            full_path.startswith("chat") or
             full_path.startswith("assets/") or
             full_path == "health"):
             raise HTTPException(status_code=404, detail="Not found")
