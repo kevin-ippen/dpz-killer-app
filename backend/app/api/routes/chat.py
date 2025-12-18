@@ -83,28 +83,13 @@ class MASStreamingClient:
             logger.info(f"[MAS] Streaming from endpoint: {self.endpoint_name}")
             logger.info(f"[MAS] Message count: {len(input_messages)}")
 
-            # Use WorkspaceClient with correct payload format
-            # MAS expects: {"input": [...messages...], "stream": true}
-            # The SDK will handle authentication automatically in Databricks Apps
-
-            # Construct the full endpoint URL
-            endpoint_url = f"/api/2.0/serving-endpoints/{self.endpoint_name}/invocations"
-
-            # Prepare payload in MAS format
-            payload = {
-                "input": input_messages,
-                "stream": True
-            }
-
-            logger.info(f"[MAS] Calling endpoint with payload format: input array")
-
             # Use httpx to make streaming request directly
             import httpx
 
             # Get the configured credentials from WorkspaceClient
             config = self.client.config
 
-            # Build full URL
+            # Build workspace host URL
             if not config.host:
                 raise Exception("Databricks workspace host not configured")
 
@@ -112,7 +97,40 @@ class MASStreamingClient:
             if not host.startswith("http"):
                 host = f"https://{host}"
 
-            url = f"{host}{endpoint_url}"
+            # Check if endpoint is route-optimized by querying its metadata
+            # Route-optimized endpoints (created late 2024+) have a special URL
+            workspace_id = os.getenv("DATABRICKS_WORKSPACE_ID")
+
+            # Try to get endpoint details to check if it's route-optimized
+            try:
+                endpoint_info = self.client.serving_endpoints.get(self.endpoint_name)
+
+                # Check if endpoint_url is provided (only for route-optimized)
+                if hasattr(endpoint_info, 'endpoint_url') and endpoint_info.endpoint_url:
+                    # Route-optimized endpoint
+                    url = f"{endpoint_info.endpoint_url}/invocations"
+                    logger.info(f"[MAS] Using route-optimized URL: {url}")
+                else:
+                    # Standard workspace-hosted endpoint
+                    endpoint_url = f"/serving-endpoints/{self.endpoint_name}/invocations"
+                    url = f"{host}{endpoint_url}"
+                    logger.info(f"[MAS] Using standard workspace URL: {url}")
+
+            except Exception as get_error:
+                # Fallback to standard path if we can't get endpoint info
+                logger.warning(f"[MAS] Could not get endpoint info: {get_error}")
+                endpoint_url = f"/serving-endpoints/{self.endpoint_name}/invocations"
+                url = f"{host}{endpoint_url}"
+                logger.info(f"[MAS] Fallback to standard URL: {url}")
+
+            # Prepare payload in MAS format
+            # MAS expects: {"input": [...messages...], "stream": true}
+            payload = {
+                "input": input_messages,
+                "stream": True
+            }
+
+            logger.info(f"[MAS] Calling endpoint with payload format: input array")
 
             # Get OAuth token using Databricks Apps M2M credentials
             # In Databricks Apps, CLIENT_ID and CLIENT_SECRET are automatically provided
