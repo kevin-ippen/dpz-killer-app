@@ -83,6 +83,8 @@ try:
 
         async def __call__(self, scope, receive, send):
             if scope["type"] in ("http", "websocket"):
+                # DIAGNOSTIC: Log that we're receiving requests
+                logger.info(f"🔍 RootPathASGI received {scope['type']} request: {scope.get('path', 'unknown')}")
                 # Set root_path so Chainlit knows it's mounted at /chat
                 # FastAPI mount already stripped /chat from the path
                 scope["root_path"] = self.root_path
@@ -150,30 +152,32 @@ if os.path.exists(frontend_dist):
     # ============================================================================
     # NOTE: This catch-all route MUST be defined AFTER all mounts (especially /chat)
     # The /chat mount above should intercept all /chat/* requests before they reach here
-    @app.get("/{full_path:path}")
-    async def spa_fallback(full_path: str):
-        """
-        Serve React app for client-side routing
 
-        Explicitly exclude:
-        - /api/* - Backend API routes
-        - /assets/* - Static assets
-        - /health - Health check
-        
-        Note: /chat/* is handled by the mount above and should never reach here
-        """
-        # These paths should be handled by other routes/mounts
-        # If we reach here for these paths, something is wrong with routing
-        if (full_path.startswith("api/") or
-            full_path.startswith("assets/") or
-            full_path == "health"):
-            raise HTTPException(status_code=404, detail="Not found")
-
-        # Serve index.html for all other routes (SPA routing)
-        index_path = os.path.join(frontend_dist, "index.html")
-        if os.path.exists(index_path):
-            return FileResponse(index_path)
-        raise HTTPException(status_code=404, detail="Frontend not built")
+    # TEMPORARILY COMMENTED OUT TO TEST IF CATCH-ALL IS INTERFERING WITH /chat
+    # @app.get("/{full_path:path}")
+    # async def spa_fallback(full_path: str):
+    #     """
+    #     Serve React app for client-side routing
+    #
+    #     Explicitly exclude:
+    #     - /api/* - Backend API routes
+    #     - /assets/* - Static assets
+    #     - /health - Health check
+    #
+    #     Note: /chat/* is handled by the mount above and should never reach here
+    #     """
+    #     # These paths should be handled by other routes/mounts
+    #     # If we reach here for these paths, something is wrong with routing
+    #     if (full_path.startswith("api/") or
+    #         full_path.startswith("assets/") or
+    #         full_path == "health"):
+    #         raise HTTPException(status_code=404, detail="Not found")
+    #
+    #     # Serve index.html for all other routes (SPA routing)
+    #     index_path = os.path.join(frontend_dist, "index.html")
+    #     if os.path.exists(index_path):
+    #         return FileResponse(index_path)
+    #     raise HTTPException(status_code=404, detail="Frontend not built")
 else:
     logger.warning(f"❌ Frontend dist directory not found: {frontend_dist}")
     logger.info("Run 'npm run build' in frontend directory to build the frontend")
