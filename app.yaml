@@ -7,10 +7,6 @@
 # Note: uvicorn will serve both API and frontend static files
 command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
-# OAuth2 API Scopes - Required for app to access Databricks APIs
-user_api_scopes:
-  - serving.serving-endpoints  # Access to serving endpoints (MAS, LLM)
-
 # Resource configuration (optional)
 # Uncomment and adjust based on your needs
 # resources:
