@@ -215,28 +215,22 @@ class MASStreamingClient:
                                     item = event.get("item", {})
                                     item_type = item.get("type", "")
 
-                                    # Function call (tool/agent invocation)
+                                    # Function call completed (tool/agent invocation finished)
                                     if item_type == "function_call":
                                         tool_name = item.get("name", "unknown")
-                                        logger.info(f"[MAS] Tool call completed: {tool_name}")
+                                        logger.info(f"[MAS] Tool completed: {tool_name}")
+                                        # Emit tool.output to mark completion (stops spinner)
                                         yield {
-                                            "type": "tool.call",
+                                            "type": "tool.output",
                                             "name": tool_name,
-                                            "args": item.get("arguments", {})
+                                            "output": "Complete"
                                         }
 
-                                    # Message with content
+                                    # Message with content (skip - this duplicates streamed content)
+                                    # The text was already streamed via response.output_text.delta events
                                     elif "content" in item:
-                                        content_items = item.get("content", [])
-                                        if isinstance(content_items, list):
-                                            for content_item in content_items:
-                                                if isinstance(content_item, dict) and "text" in content_item:
-                                                    text = content_item["text"]
-                                                    logger.info(f"[MAS] Item text: {text[:50]}")
-                                                    yield {
-                                                        "type": "text.delta",
-                                                        "delta": text
-                                                    }
+                                        logger.debug("[MAS] Skipping output_item content (already streamed)")
+                                        pass
 
                                 # MAS Function result
                                 elif event_type == "response.function_call_result" or event_type == "response.tool_result":
@@ -261,8 +255,26 @@ class MASStreamingClient:
                                                 "delta": content
                                             }
 
+                                # MAS Response format: response.output_item.added (tool/agent starting)
+                                elif event_type == "response.output_item.added":
+                                    item = event.get("item", {})
+                                    item_type = item.get("type", "")
+
+                                    # Function call starting (tool/agent invocation begins)
+                                    if item_type == "function_call":
+                                        tool_name = item.get("name", "unknown")
+                                        logger.info(f"[MAS] Tool started: {tool_name}")
+                                        # Emit tool.call to show badge with spinner
+                                        yield {
+                                            "type": "tool.call",
+                                            "name": tool_name,
+                                            "args": item.get("arguments", {})
+                                        }
+                                    else:
+                                        logger.debug(f"[MAS] Item added: {item_type}")
+
                                 # Ignore these event types (just metadata)
-                                elif event_type in ["response.created", "response.done", "response.output_item.added"]:
+                                elif event_type in ["response.created", "response.done"]:
                                     logger.debug(f"[MAS] Metadata event: {event_type}")
                                     pass
 
