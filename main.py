@@ -12,6 +12,9 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Set CHAINLIT_ROOT_PATH BEFORE any chainlit imports
+os.environ["CHAINLIT_ROOT_PATH"] = "/chat"
+
 # Add backend directory to Python path BEFORE any imports
 backend_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backend')
 sys.path.insert(0, backend_path)
@@ -30,16 +33,14 @@ try:
     logger.info(f"Chat app path: {chat_app_path}")
     logger.info(f"Chat app exists: {os.path.exists(os.path.join(chat_app_path, 'app.py'))}")
 
-    # Import Chainlit
+    # Import Chainlit (after CHAINLIT_ROOT_PATH is set)
     import chainlit as cl
     logger.info("✅ Chainlit imported")
 
     # Import Starlette for mounting
     from starlette.applications import Starlette
     from starlette.routing import Mount
-
-    # Configure Chainlit to work at /chat subpath
-    os.environ["CHAINLIT_ROOT_PATH"] = "/chat"
+    from starlette.responses import RedirectResponse
 
     # Import the chat app module using a unique name
     import importlib.util
@@ -52,11 +53,14 @@ try:
     from chainlit.server import app as chainlit_asgi_app
     logger.info("✅ Chainlit ASGI app retrieved")
 
-    # Mount both apps with Chainlit FIRST
+    # Create Starlette app with EXPLICIT route ordering
+    # IMPORTANT: More specific routes MUST come before catch-alls
     app = Starlette(
         routes=[
-            Mount("/chat", chainlit_asgi_app),
-            Mount("/", backend_app),
+            # Chainlit MUST be first and most specific
+            Mount("/chat", chainlit_asgi_app, name="chat"),
+            # Backend at root comes last (has catch-all for SPA routing)
+            Mount("/", backend_app, name="main"),
         ]
     )
 
