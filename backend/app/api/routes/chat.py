@@ -13,7 +13,6 @@ import json
 import os
 from datetime import datetime
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.service.serving import ChatMessage as SDKChatMessage, ChatMessageRole
 from app.services.llm_client import llm_client
 
 logger = logging.getLogger(__name__)
@@ -73,67 +72,100 @@ class MASStreamingClient:
         - {"type": "error", "message": "..."}
         """
         try:
-            # Convert to Databricks SDK format
-            sdk_messages = []
+            # Convert to MAS input format (expects 'input' array, not 'messages')
+            input_messages = []
             for msg in messages:
-                role = ChatMessageRole.USER if msg.role == "user" else ChatMessageRole.ASSISTANT
-                sdk_messages.append(SDKChatMessage(role=role, content=msg.content))
+                input_messages.append({
+                    "role": msg.role,
+                    "content": msg.content
+                })
 
             logger.info(f"[MAS] Streaming from endpoint: {self.endpoint_name}")
-            logger.info(f"[MAS] Message count: {len(sdk_messages)}")
+            logger.info(f"[MAS] Message count: {len(input_messages)}")
 
-            # Stream from MAS endpoint
-            response = self.client.serving_endpoints.query(
-                name=self.endpoint_name,
-                messages=sdk_messages,
-                stream=True
-            )
+            # Use raw API call with correct MAS schema
+            # MAS expects: {"input": [...messages...], "stream": true}
+            import httpx
 
-            for event in response:
-                # Normalize events from MAS
-                if hasattr(event, 'choices') and event.choices:
-                    choice = event.choices[0]
+            # Get databricks config
+            databricks_host = os.getenv("DATABRICKS_HOST")
+            databricks_token = os.getenv("DATABRICKS_TOKEN")
 
-                    # Text delta
-                    if hasattr(choice, 'delta') and choice.delta:
-                        if hasattr(choice.delta, 'content') and choice.delta.content:
-                            yield {
-                                "type": "text.delta",
-                                "delta": choice.delta.content
-                            }
+            if not databricks_host or not databricks_token:
+                raise Exception("DATABRICKS_HOST or DATABRICKS_TOKEN not configured")
 
-                        # Tool calls (starting)
-                        if hasattr(choice.delta, 'tool_calls') and choice.delta.tool_calls:
-                            for tool_call in choice.delta.tool_calls:
-                                if hasattr(tool_call, 'function') and tool_call.function:
-                                    if hasattr(tool_call.function, 'name') and tool_call.function.name:
-                                        tool_args = {}
-                                        if hasattr(tool_call.function, 'arguments'):
-                                            try:
-                                                tool_args = json.loads(tool_call.function.arguments)
-                                            except:
-                                                tool_args = {"raw": tool_call.function.arguments}
+            # Ensure host has https://
+            if not databricks_host.startswith("http"):
+                databricks_host = f"https://{databricks_host}"
 
-                                        yield {
-                                            "type": "tool.call",
-                                            "name": tool_call.function.name,
-                                            "args": tool_args
-                                        }
+            url = f"{databricks_host}/serving-endpoints/{self.endpoint_name}/invocations"
+            headers = {
+                "Authorization": f"Bearer {databricks_token}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "input": input_messages,
+                "stream": True
+            }
 
-                    # Tool outputs (completed)
-                    if hasattr(choice, 'message') and choice.message:
-                        if hasattr(choice.message, 'tool_calls') and choice.message.tool_calls:
-                            for tool_call in choice.message.tool_calls:
-                                if hasattr(tool_call, 'function') and tool_call.function:
-                                    output_text = "Complete"
-                                    if hasattr(tool_call.function, 'result'):
-                                        output_text = str(tool_call.function.result)
+            logger.info(f"[MAS] Calling endpoint: {url}")
 
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                async with client.stream("POST", url, json=payload, headers=headers) as response:
+                    response.raise_for_status()
+
+                    async for line in response.aiter_lines():
+                        if not line.strip() or not line.startswith("data: "):
+                            continue
+
+                        data = line[6:]  # Remove "data: " prefix
+                        if data == "[DONE]":
+                            continue
+
+                        try:
+                            event = json.loads(data)
+
+                            # Parse MAS response format
+                            if "choices" in event and event["choices"]:
+                                choice = event["choices"][0]
+
+                                # Text delta
+                                if "delta" in choice and "content" in choice["delta"]:
                                     yield {
-                                        "type": "tool.output",
-                                        "name": tool_call.function.name,
-                                        "output": output_text
+                                        "type": "text.delta",
+                                        "delta": choice["delta"]["content"]
                                     }
+
+                                # Tool calls
+                                if "delta" in choice and "tool_calls" in choice["delta"]:
+                                    for tool_call in choice["delta"]["tool_calls"]:
+                                        if "function" in tool_call and "name" in tool_call["function"]:
+                                            tool_args = {}
+                                            if "arguments" in tool_call["function"]:
+                                                try:
+                                                    tool_args = json.loads(tool_call["function"]["arguments"])
+                                                except:
+                                                    tool_args = {"raw": tool_call["function"]["arguments"]}
+
+                                            yield {
+                                                "type": "tool.call",
+                                                "name": tool_call["function"]["name"],
+                                                "args": tool_args
+                                            }
+
+                                # Tool outputs
+                                if "message" in choice and "tool_calls" in choice["message"]:
+                                    for tool_call in choice["message"]["tool_calls"]:
+                                        if "function" in tool_call:
+                                            output = tool_call["function"].get("result", "Complete")
+                                            yield {
+                                                "type": "tool.output",
+                                                "name": tool_call["function"]["name"],
+                                                "output": str(output)
+                                            }
+                        except Exception as parse_error:
+                            logger.warning(f"[MAS] Failed to parse event: {parse_error}")
+                            continue
 
         except Exception as e:
             logger.error(f"[MAS] Streaming error: {e}", exc_info=True)
