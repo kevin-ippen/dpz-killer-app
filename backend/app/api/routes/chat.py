@@ -174,57 +174,80 @@ class MASStreamingClient:
                     response.raise_for_status()
 
                     async for line in response.aiter_lines():
-                        if not line.strip() or not line.startswith("data: "):
+                        if not line.strip():
                             continue
 
-                        data = line[6:]  # Remove "data: " prefix
-                        if data == "[DONE]":
-                            continue
+                        # Log raw line for debugging
+                        logger.debug(f"[MAS] Raw line: {line[:200]}")
 
-                        try:
-                            event = json.loads(data)
+                        # Handle SSE format
+                        if line.startswith("data: "):
+                            data = line[6:]  # Remove "data: " prefix
 
-                            # Parse MAS response format
-                            if "choices" in event and event["choices"]:
-                                choice = event["choices"][0]
+                            if data == "[DONE]":
+                                logger.info("[MAS] Received [DONE] signal")
+                                continue
 
-                                # Text delta
-                                if "delta" in choice and "content" in choice["delta"]:
-                                    yield {
-                                        "type": "text.delta",
-                                        "delta": choice["delta"]["content"]
-                                    }
+                            try:
+                                event = json.loads(data)
+                                logger.debug(f"[MAS] Parsed event keys: {list(event.keys())}")
 
-                                # Tool calls
-                                if "delta" in choice and "tool_calls" in choice["delta"]:
-                                    for tool_call in choice["delta"]["tool_calls"]:
-                                        if "function" in tool_call and "name" in tool_call["function"]:
-                                            tool_args = {}
-                                            if "arguments" in tool_call["function"]:
-                                                try:
-                                                    tool_args = json.loads(tool_call["function"]["arguments"])
-                                                except:
-                                                    tool_args = {"raw": tool_call["function"]["arguments"]}
+                                # Parse MAS response format (OpenAI-compatible)
+                                if "choices" in event and event["choices"]:
+                                    choice = event["choices"][0]
 
+                                    # Text delta
+                                    if "delta" in choice and "content" in choice["delta"]:
+                                        content = choice["delta"]["content"]
+                                        if content:  # Only yield non-empty content
+                                            logger.debug(f"[MAS] Text delta: {content[:50]}")
                                             yield {
-                                                "type": "tool.call",
-                                                "name": tool_call["function"]["name"],
-                                                "args": tool_args
+                                                "type": "text.delta",
+                                                "delta": content
                                             }
 
-                                # Tool outputs
-                                if "message" in choice and "tool_calls" in choice["message"]:
-                                    for tool_call in choice["message"]["tool_calls"]:
-                                        if "function" in tool_call:
-                                            output = tool_call["function"].get("result", "Complete")
-                                            yield {
-                                                "type": "tool.output",
-                                                "name": tool_call["function"]["name"],
-                                                "output": str(output)
-                                            }
-                        except Exception as parse_error:
-                            logger.warning(f"[MAS] Failed to parse event: {parse_error}")
-                            continue
+                                    # Tool calls
+                                    if "delta" in choice and "tool_calls" in choice["delta"]:
+                                        for tool_call in choice["delta"]["tool_calls"]:
+                                            if "function" in tool_call and "name" in tool_call["function"]:
+                                                tool_name = tool_call["function"]["name"]
+                                                logger.info(f"[MAS] Tool call: {tool_name}")
+
+                                                tool_args = {}
+                                                if "arguments" in tool_call["function"]:
+                                                    try:
+                                                        tool_args = json.loads(tool_call["function"]["arguments"])
+                                                    except:
+                                                        tool_args = {"raw": tool_call["function"]["arguments"]}
+
+                                                yield {
+                                                    "type": "tool.call",
+                                                    "name": tool_name,
+                                                    "args": tool_args
+                                                }
+
+                                    # Tool outputs
+                                    if "message" in choice and "tool_calls" in choice["message"]:
+                                        for tool_call in choice["message"]["tool_calls"]:
+                                            if "function" in tool_call:
+                                                tool_name = tool_call["function"]["name"]
+                                                output = tool_call["function"].get("result", "Complete")
+                                                logger.info(f"[MAS] Tool output: {tool_name}")
+                                                yield {
+                                                    "type": "tool.output",
+                                                    "name": tool_name,
+                                                    "output": str(output)
+                                                }
+                                else:
+                                    # Log unexpected format
+                                    logger.warning(f"[MAS] Unexpected event format: {json.dumps(event)[:200]}")
+
+                            except json.JSONDecodeError as e:
+                                logger.warning(f"[MAS] JSON decode error: {e}, data: {data[:200]}")
+                                continue
+                            except Exception as parse_error:
+                                logger.error(f"[MAS] Failed to parse event: {parse_error}", exc_info=True)
+                                continue
 
         except Exception as e:
             logger.error(f"[MAS] Streaming error: {e}", exc_info=True)
