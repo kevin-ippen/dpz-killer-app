@@ -51,7 +51,57 @@ app.add_middleware(
 )
 
 # ============================================================================
-# 1. INCLUDE BACKEND API ROUTES FIRST
+# 1. MOUNT CHAINLIT FIRST (before any catch-all routes!)
+# ============================================================================
+try:
+    chat_app_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'chat-app')
+    sys.path.insert(0, chat_app_path)
+
+    # Import Chainlit
+    import chainlit as cl
+    from starlette.middleware.wsgi import WSGIMiddleware
+    from starlette.middleware import Middleware
+
+    # Import the chat app module to initialize Chainlit handlers
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("chainlit_app", os.path.join(chat_app_path, 'app.py'))
+    chat_app_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(chat_app_module)
+
+    # Get Chainlit's ASGI app
+    from chainlit.server import app as chainlit_asgi_app
+
+    # Wrap Chainlit app with root_path middleware so it knows it's at /chat
+    from starlette.applications import Starlette as StarletteApp
+    from starlette.routing import Mount
+
+    # Create a wrapper that sets root_path
+    class RootPathASGI:
+        def __init__(self, app, root_path: str):
+            self.app = app
+            self.root_path = root_path
+
+        async def __call__(self, scope, receive, send):
+            if scope["type"] in ("http", "websocket"):
+                # Set root_path so Chainlit knows it's mounted at /chat
+                # FastAPI mount already stripped /chat from the path
+                scope["root_path"] = self.root_path
+            await self.app(scope, receive, send)
+
+    # Wrap Chainlit with root_path
+    chainlit_with_root = RootPathASGI(chainlit_asgi_app, "/chat")
+
+    # Mount Chainlit at /chat - THIS MUST HAPPEN BEFORE CATCH-ALL ROUTES
+    app.mount("/chat", chainlit_with_root, name="chat")
+
+    logger.info("✅ Chainlit mounted at /chat with root_path middleware")
+except Exception as e:
+    logger.error(f"❌ Could not mount Chainlit: {e}")
+    import traceback
+    logger.error(traceback.format_exc())
+
+# ============================================================================
+# 2. INCLUDE BACKEND API ROUTES
 # ============================================================================
 
 # Include API routers under /api prefix
@@ -98,6 +148,8 @@ if os.path.exists(frontend_dist):
     # ============================================================================
     # 4. SPA FALLBACK (exclude /api, /chat, /assets, /health)
     # ============================================================================
+    # NOTE: This catch-all route MUST be defined AFTER all mounts (especially /chat)
+    # Otherwise it will intercept requests before they reach the mounted apps
     @app.get("/{full_path:path}")
     async def spa_fallback(full_path: str):
         """
@@ -105,11 +157,12 @@ if os.path.exists(frontend_dist):
 
         Explicitly exclude:
         - /api/* - Backend API routes
-        - /chat - Chainlit app
-        - /assets - Static assets
+        - /chat/* - Chainlit app (should never reach here due to mount)
+        - /assets/* - Static assets
         - /health - Health check
         """
-        # Don't serve SPA for these paths
+        # These paths should be handled by other routes/mounts
+        # If we reach here, something is wrong with routing
         if (full_path.startswith("api/") or
             full_path.startswith("chat") or
             full_path.startswith("assets/") or
@@ -124,56 +177,6 @@ if os.path.exists(frontend_dist):
 else:
     logger.warning(f"❌ Frontend dist directory not found: {frontend_dist}")
     logger.info("Run 'npm run build' in frontend directory to build the frontend")
-
-# ============================================================================
-# MOUNT CHAINLIT LAST (after all routes including catch-all are defined)
-# ============================================================================
-try:
-    chat_app_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'chat-app')
-    sys.path.insert(0, chat_app_path)
-
-    # Import Chainlit
-    import chainlit as cl
-    from starlette.middleware.wsgi import WSGIMiddleware
-    from starlette.middleware import Middleware
-
-    # Import the chat app module to initialize Chainlit handlers
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("chainlit_app", os.path.join(chat_app_path, 'app.py'))
-    chat_app_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(chat_app_module)
-
-    # Get Chainlit's ASGI app
-    from chainlit.server import app as chainlit_asgi_app
-
-    # Wrap Chainlit app with root_path middleware so it knows it's at /chat
-    from starlette.applications import Starlette as StarletteApp
-    from starlette.routing import Mount
-
-    # Create a wrapper that sets root_path
-    class RootPathASGI:
-        def __init__(self, app, root_path: str):
-            self.app = app
-            self.root_path = root_path
-
-        async def __call__(self, scope, receive, send):
-            if scope["type"] in ("http", "websocket"):
-                # Set root_path so Chainlit knows it's mounted at /chat
-                # FastAPI mount already stripped /chat from the path
-                scope["root_path"] = self.root_path
-            await self.app(scope, receive, send)
-
-    # Wrap Chainlit with root_path
-    chainlit_with_root = RootPathASGI(chainlit_asgi_app, "/chat")
-
-    # Mount Chainlit at /chat
-    app.mount("/chat", chainlit_with_root, name="chat")
-
-    logger.info("✅ Chainlit mounted at /chat with root_path middleware")
-except Exception as e:
-    logger.error(f"❌ Could not mount Chainlit: {e}")
-    import traceback
-    logger.error(traceback.format_exc())
 
 # ============================================================================
 # APPLICATION LIFECYCLE EVENTS
