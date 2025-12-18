@@ -46,10 +46,49 @@ I can help you analyze your business data across:
 - 🏪 **Operations** - Store performance, delivery times
 - 💰 **Sales** - Revenue trends, product mix
 
-**Try asking:**
-- "What's our total revenue this month?"
-- "Show me CAC by marketing channel"
-- "Which customer segment has highest ARPU?"`,
+**Try clicking the visualizations below to see them in the right panel!**`,
+        },
+        {
+          id: "welcome-chart",
+          type: "chart",
+          title: "Monthly Revenue Trend",
+          subtitle: "Last 6 months",
+          specType: "recharts",
+          spec: {
+            type: "bar",
+            data: [
+              { month: "Jan", revenue: 45000 },
+              { month: "Feb", revenue: 52000 },
+              { month: "Mar", revenue: 48000 },
+              { month: "Apr", revenue: 61000 },
+              { month: "May", revenue: 58000 },
+              { month: "Jun", revenue: 67000 },
+            ],
+            xKey: "month",
+            yKey: "revenue",
+            dataKey: "revenue",
+          },
+          meta: {
+            primaryMeasure: "revenue",
+            primaryDim: "month",
+            timeframe: "Last 6 months",
+          },
+        },
+        {
+          id: "welcome-table",
+          type: "table",
+          columns: ["Channel", "CAC", "ROI", "Conversions"],
+          rows: [
+            ["Social Media", "$42", "3.2x", "1,234"],
+            ["Email", "$28", "4.8x", "2,156"],
+            ["Paid Search", "$68", "2.1x", "892"],
+            ["Organic", "$15", "6.5x", "3,421"],
+            ["Referral", "$22", "5.2x", "1,678"],
+          ],
+          meta: {
+            title: "Marketing Channel Performance",
+            subtitle: "Current month metrics",
+          },
         },
       ],
       timestamp: Date.now(),
