@@ -38,6 +38,9 @@ try:
     from starlette.applications import Starlette
     from starlette.routing import Mount
 
+    # Configure Chainlit to work at /chat subpath
+    os.environ["CHAINLIT_ROOT_PATH"] = "/chat"
+
     # Import the chat app module using a unique name
     import importlib.util
     spec = importlib.util.spec_from_file_location("chainlit_app", os.path.join(chat_app_path, 'app.py'))
