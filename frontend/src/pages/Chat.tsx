@@ -232,18 +232,23 @@ I can help you analyze your business data across:
             </p>
           </div>
 
-          {/* Status indicator */}
-          <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            <span
-              className={`h-2 w-2 rounded-full ${
-                isStreaming ? "animate-pulse" : ""
-              }`}
-              style={{ background: isStreaming ? 'var(--color-accent)' : 'var(--color-success)' }}
-            />
-            <span className="font-medium">
-              {isStreaming ? "Thinking..." : "Ready"}
-            </span>
-          </div>
+          {/* Status indicator pill */}
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium"
+            style={{
+              border: '1px solid var(--color-border-subtle)',
+              background: 'rgba(15, 23, 42, 0.8)',
+              borderRadius: 'var(--radius-pill)',
+              color: 'var(--color-text-secondary)',
+            }}
+          >
+            {isStreaming ? (
+              <Loader2 className="h-3 w-3 animate-spin" style={{ color: 'var(--color-accent)' }} />
+            ) : (
+              <CheckCircle2 className="h-3 w-3" style={{ color: 'var(--color-success)' }} />
+            )}
+            <span>{isStreaming ? "Thinking…" : "Ready"}</span>
+          </span>
         </div>
       </div>
 
@@ -257,62 +262,70 @@ I can help you analyze your business data across:
             }`}
           >
             <div
-              className={`max-w-3xl px-5 py-4 ${
-                message.role === "user"
-                  ? ""
-                  : ""
-              }`}
+              className="max-w-[42rem]"
               style={
                 message.role === "user"
                   ? {
                       background: 'var(--color-accent)',
                       color: 'white',
-                      borderRadius: 'var(--radius-lg)',
-                      boxShadow: 'var(--shadow-soft)',
+                      borderRadius: '24px',
+                      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)',
+                      padding: '0.75rem 1rem',
                     }
                   : {
                       background: 'rgba(15, 23, 42, 0.96)',
-                      border: '1px solid rgba(30, 41, 59, 0.8)',
+                      border: '1px solid rgba(30, 41, 59, 0.9)',
                       borderRadius: 'var(--radius-lg)',
-                      boxShadow: 'var(--shadow-soft)',
+                      boxShadow: '0 10px 30px rgba(0, 0, 0, 0.35)',
                       color: 'var(--color-text-primary)',
+                      padding: '0.9rem 1rem',
                     }
               }
             >
               {/* Tool calls */}
               {message.toolCalls && message.toolCalls.length > 0 && (
-                <div className="mb-3 space-y-2">
-                  {message.toolCalls.map((tool, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center gap-2 px-3 py-2 text-xs font-medium"
-                      style={{
-                        background: 'var(--color-accent-soft)',
-                        border: '1px solid var(--color-accent-border)',
-                        borderRadius: 'var(--radius-pill)',
-                        color: 'var(--color-text-primary)',
-                      }}
-                    >
-                      {tool.status === "running" && (
-                        <Loader2 className="h-3 w-3 animate-spin" style={{ color: 'var(--color-accent)' }} />
-                      )}
-                      {tool.status === "complete" && (
-                        <CheckCircle2 className="h-3 w-3" style={{ color: 'var(--color-success)' }} />
-                      )}
-                      {tool.status === "error" && (
-                        <AlertCircle className="h-3 w-3" style={{ color: 'var(--color-danger)' }} />
-                      )}
-                      <Database className="h-3 w-3" style={{ color: 'var(--color-text-secondary)' }} />
-                      <span>
-                        {tool.name === "execute_genie_query"
-                          ? "Querying Genie Space"
-                          : tool.name}
+                <div className="mb-2 pb-2 space-y-1.5" style={{ borderBottom: '1px solid rgba(30, 41, 59, 0.8)' }}>
+                  {message.toolCalls.map((tool, idx) => {
+                    const isRunning = tool.status === "running";
+                    const isComplete = tool.status === "complete";
+                    const isError = tool.status === "error";
+
+                    return (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1 px-2.5 py-0.5 font-medium"
+                        style={{
+                          fontSize: '10px',
+                          borderRadius: 'var(--radius-pill)',
+                          border: isComplete
+                            ? '1px solid rgba(34, 197, 94, 0.6)'
+                            : isError
+                            ? '1px solid rgba(239, 68, 68, 0.6)'
+                            : '1px solid var(--color-border-subtle)',
+                          background: isComplete
+                            ? 'rgba(34, 197, 94, 0.1)'
+                            : isError
+                            ? 'rgba(239, 68, 68, 0.1)'
+                            : 'rgba(15, 23, 42, 0.8)',
+                          color: isComplete
+                            ? 'rgb(134, 239, 172)'
+                            : isError
+                            ? 'rgb(252, 165, 165)'
+                            : 'var(--color-text-secondary)',
+                        }}
+                      >
+                        {isRunning && <Loader2 className="h-3 w-3 animate-spin" />}
+                        {isComplete && <CheckCircle2 className="h-3 w-3" />}
+                        {isError && <AlertCircle className="h-3 w-3" />}
+                        <Database className="h-3 w-3 opacity-70" />
+                        <span>
+                          {tool.name === "execute_genie_query"
+                            ? "Genie: querying space"
+                            : tool.name}
+                        </span>
                       </span>
-                      {tool.status === "complete" && (
-                        <span className="ml-auto" style={{ color: 'var(--color-success)' }}>✓</span>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
@@ -493,23 +506,25 @@ function renderTable(tableLines: string[], key: number): JSX.Element {
       key={key}
       className="overflow-x-auto my-4"
       style={{
-        background: 'rgba(15, 23, 42, 0.8)',
+        background: 'rgba(15, 23, 42, 0.9)',
         borderRadius: 'var(--radius-md)',
         border: '1px solid var(--color-border-subtle)',
+        overflow: 'hidden',
       }}
     >
-      <table className="min-w-full border-collapse">
-        <thead style={{ background: 'var(--color-accent)', color: 'white' }}>
-          <tr>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ background: 'var(--color-accent)', color: 'white' }}>
             {headers.map((header, idx) => (
               <th
                 key={idx}
-                className="px-4 py-3 text-left font-semibold"
                 style={{
-                  fontSize: 'var(--text-xs)',
+                  fontSize: '11px',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+                  letterSpacing: '0.06em',
+                  padding: '0.5rem 0.75rem',
+                  textAlign: 'left',
+                  fontWeight: 600,
                 }}
               >
                 {header}
@@ -522,17 +537,21 @@ function renderTable(tableLines: string[], key: number): JSX.Element {
             <tr
               key={rowIdx}
               style={{
-                background: rowIdx % 2 === 0 ? 'rgba(15, 23, 42, 0.4)' : 'rgba(30, 41, 59, 0.4)',
+                background: rowIdx % 2 === 0 ? 'rgba(15, 23, 42, 0.8)' : 'rgba(30, 41, 59, 0.9)',
               }}
             >
               {row.map((cell, cellIdx) => (
                 <td
                   key={cellIdx}
-                  className="px-4 py-2"
                   style={{
-                    fontSize: 'var(--text-sm)',
+                    fontSize: '0.8rem',
                     color: 'var(--color-text-primary)',
-                    borderBottom: '1px solid rgba(30, 41, 59, 0.5)',
+                    padding: '0.45rem 0.75rem',
+                    borderBottom: '1px solid rgba(30, 41, 59, 0.8)',
+                    whiteSpace: 'nowrap',
+                    textOverflow: 'ellipsis',
+                    overflow: 'hidden',
+                    maxWidth: '200px',
                   }}
                 >
                   {cell}
