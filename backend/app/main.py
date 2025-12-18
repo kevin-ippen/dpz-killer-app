@@ -187,7 +187,16 @@ if os.path.exists(frontend_dist):
 
         This enables client-side routing in the React app.
         More specific routes (like /api/* and /health) will match first.
+
+        Note: /chat is handled by Chainlit mounting in main.py, so this won't
+        be called for /chat/* paths when properly mounted.
         """
+        # Don't serve React app for /chat paths - let them 404
+        # (Chainlit mounting in main.py should handle these)
+        if full_path.startswith("chat"):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Chat endpoint should be handled by Chainlit mounting")
+
         index_path = os.path.join(frontend_dist, "index.html")
         return FileResponse(index_path)
 
