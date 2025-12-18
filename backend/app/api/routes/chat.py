@@ -175,12 +175,16 @@ class MASStreamingClient:
                 ) as response:
                     response.raise_for_status()
 
+                    logger.info(f"[MAS] Response status: {response.status_code}, headers: {dict(response.headers)}")
+                    logger.info("[MAS] Starting to iterate response lines...")
+
+                    line_count = 0
                     async for line in response.aiter_lines():
+                        line_count += 1
+                        logger.info(f"[MAS] Line {line_count}: {line[:100] if line else 'EMPTY'}")
                         if not line.strip():
                             continue
 
-                        # Log raw line for debugging
-                        logger.debug(f"[MAS] Raw line: {line[:200]}")
 
                         # Handle SSE format
                         if line.startswith("data: "):
