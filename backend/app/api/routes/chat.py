@@ -240,12 +240,64 @@ class MASStreamingClient:
                                     elif event_type == "response.function_call_result" or event_type == "response.tool_result":
                                         result = event.get("result", {})
                                         tool_name = result.get("name", "agent")
+                                        tool_output = result.get("output", "Complete")
+
                                         logger.info(f"[MAS] Tool result: {tool_name}")
+                                        logger.debug(f"[MAS] Tool output type: {type(tool_output)}")
+
+                                        # Emit standard tool.output for UI badge
                                         yield {
                                             "type": "tool.output",
                                             "name": tool_name,
-                                            "output": str(result.get("output", "Complete"))
+                                            "output": str(tool_output)
                                         }
+
+                                        # Special handling for Genie queries - extract chart reference
+                                        if tool_name == "execute_genie_query" and isinstance(tool_output, dict):
+                                            try:
+                                                # MAS tool output format (varies by MAS implementation)
+                                                # Check for Genie coordinates in the output
+                                                genie_ref = None
+
+                                                # Pattern 1: Direct coordinates
+                                                if all(k in tool_output for k in ["space_id", "conversation_id", "message_id", "attachment_id"]):
+                                                    genie_ref = {
+                                                        "spaceId": tool_output["space_id"],
+                                                        "conversationId": tool_output["conversation_id"],
+                                                        "messageId": tool_output["message_id"],
+                                                        "attachmentId": tool_output["attachment_id"]
+                                                    }
+
+                                                # Pattern 2: Nested in 'result' or 'data'
+                                                elif "result" in tool_output and isinstance(tool_output["result"], dict):
+                                                    res = tool_output["result"]
+                                                    if all(k in res for k in ["space_id", "conversation_id", "message_id", "attachment_id"]):
+                                                        genie_ref = {
+                                                            "spaceId": res["space_id"],
+                                                            "conversationId": res["conversation_id"],
+                                                            "messageId": res["message_id"],
+                                                            "attachmentId": res["attachment_id"]
+                                                        }
+
+                                                # Pattern 3: Look in tool arguments (from the function_call)
+                                                # This requires storing args from output_item.added
+
+                                                if genie_ref:
+                                                    logger.info(f"[MAS] Emitting chart reference: {genie_ref}")
+                                                    yield {
+                                                        "type": "chart.reference",
+                                                        "genie": genie_ref,
+                                                        "title": "Query Result",
+                                                        "subtitle": "Click to view chart"
+                                                    }
+                                                else:
+                                                    logger.debug(f"[MAS] No Genie coordinates found in tool output: {json.dumps(tool_output)[:500]}")
+
+                                            except Exception as e:
+                                                logger.warning(f"[MAS] Failed to extract Genie reference: {e}")
+
+                                        elif tool_name == "execute_genie_query":
+                                            logger.debug(f"[MAS] Genie tool output is not dict, type: {type(tool_output)}, value: {str(tool_output)[:200]}")
 
                                     # OpenAI-compatible format (fallback for other endpoints)
                                     elif "choices" in event and event["choices"]:

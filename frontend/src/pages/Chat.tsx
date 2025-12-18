@@ -263,6 +263,28 @@ I can help you analyze your business data across:
                     ),
                   };
 
+                case "chart.reference":
+                  // Genie chart reference received - create ChartBlock
+                  const chartBlockId = `${assistantMessageId}-chart-${msg.blocks.filter(b => b.type === "chart").length}`;
+                  return {
+                    ...msg,
+                    blocks: [
+                      ...msg.blocks,
+                      {
+                        id: chartBlockId,
+                        type: "chart",
+                        title: event.title || "Query Result",
+                        subtitle: event.subtitle || "Click to view",
+                        specType: "recharts",
+                        spec: null, // Will be hydrated on-demand
+                        dataRef: {
+                          type: "genie",
+                          genie: event.genie,
+                        },
+                      },
+                    ],
+                  };
+
                 case "error":
                   return {
                     ...msg,
