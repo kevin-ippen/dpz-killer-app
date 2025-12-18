@@ -196,17 +196,18 @@ class MASStreamingClient:
 
                             try:
                                 event = json.loads(data)
-                                logger.debug(f"[MAS] Parsed event keys: {list(event.keys())}")
+                                logger.info(f"[MAS] Event keys: {list(event.keys())}")
+                                logger.info(f"[MAS] Full event: {json.dumps(event)[:500]}")
 
-                                # Parse MAS response format (OpenAI-compatible)
+                                # Try OpenAI-compatible format first (choices array)
                                 if "choices" in event and event["choices"]:
                                     choice = event["choices"][0]
 
                                     # Text delta
                                     if "delta" in choice and "content" in choice["delta"]:
                                         content = choice["delta"]["content"]
-                                        if content:  # Only yield non-empty content
-                                            logger.debug(f"[MAS] Text delta: {content[:50]}")
+                                        if content:
+                                            logger.info(f"[MAS] OpenAI text delta: {content[:50]}")
                                             yield {
                                                 "type": "text.delta",
                                                 "delta": content
@@ -217,36 +218,73 @@ class MASStreamingClient:
                                         for tool_call in choice["delta"]["tool_calls"]:
                                             if "function" in tool_call and "name" in tool_call["function"]:
                                                 tool_name = tool_call["function"]["name"]
-                                                logger.info(f"[MAS] Tool call: {tool_name}")
-
-                                                tool_args = {}
-                                                if "arguments" in tool_call["function"]:
-                                                    try:
-                                                        tool_args = json.loads(tool_call["function"]["arguments"])
-                                                    except:
-                                                        tool_args = {"raw": tool_call["function"]["arguments"]}
-
+                                                logger.info(f"[MAS] OpenAI tool call: {tool_name}")
                                                 yield {
                                                     "type": "tool.call",
                                                     "name": tool_name,
-                                                    "args": tool_args
+                                                    "args": tool_call["function"].get("arguments", {})
                                                 }
 
-                                    # Tool outputs
-                                    if "message" in choice and "tool_calls" in choice["message"]:
-                                        for tool_call in choice["message"]["tool_calls"]:
-                                            if "function" in tool_call:
-                                                tool_name = tool_call["function"]["name"]
-                                                output = tool_call["function"].get("result", "Complete")
-                                                logger.info(f"[MAS] Tool output: {tool_name}")
-                                                yield {
-                                                    "type": "tool.output",
-                                                    "name": tool_name,
-                                                    "output": str(output)
-                                                }
+                                # MAS Agent Framework format (event-based)
+                                elif "event" in event:
+                                    event_type = event["event"]
+                                    event_data = event.get("data", {})
+
+                                    logger.info(f"[MAS] Agent event type: {event_type}")
+
+                                    if event_type == "text" or event_type == "text_chunk":
+                                        # Text content from agent
+                                        text = event_data.get("text", "")
+                                        if text:
+                                            logger.info(f"[MAS] Agent text: {text[:50]}")
+                                            yield {
+                                                "type": "text.delta",
+                                                "delta": text
+                                            }
+
+                                    elif event_type == "agent_action" or event_type == "tool_call":
+                                        # Agent tool/space invocation
+                                        tool_name = event_data.get("name", event_data.get("tool", "unknown"))
+                                        logger.info(f"[MAS] Agent action: {tool_name}")
+                                        yield {
+                                            "type": "tool.call",
+                                            "name": tool_name,
+                                            "args": event_data.get("args", {})
+                                        }
+
+                                    elif event_type == "agent_response" or event_type == "tool_result":
+                                        # Tool/space result
+                                        tool_name = event_data.get("name", "agent")
+                                        logger.info(f"[MAS] Agent result: {tool_name}")
+                                        yield {
+                                            "type": "tool.output",
+                                            "name": tool_name,
+                                            "output": str(event_data.get("result", "Complete"))
+                                        }
+
+                                # Direct text/content field
+                                elif "text" in event:
+                                    text = event["text"]
+                                    if text:
+                                        logger.info(f"[MAS] Direct text: {text[:50]}")
+                                        yield {
+                                            "type": "text.delta",
+                                            "delta": text
+                                        }
+
+                                # Content field (common in some formats)
+                                elif "content" in event:
+                                    content = event["content"]
+                                    if content:
+                                        logger.info(f"[MAS] Content field: {content[:50]}")
+                                        yield {
+                                            "type": "text.delta",
+                                            "delta": content
+                                        }
+
+                                # If nothing matches, log it
                                 else:
-                                    # Log unexpected format
-                                    logger.warning(f"[MAS] Unexpected event format: {json.dumps(event)[:200]}")
+                                    logger.warning(f"[MAS] Unhandled event structure: {json.dumps(event)[:300]}")
 
                             except json.JSONDecodeError as e:
                                 logger.warning(f"[MAS] JSON decode error: {e}, data: {data[:200]}")
