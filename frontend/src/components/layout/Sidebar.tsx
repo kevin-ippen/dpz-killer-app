@@ -38,11 +38,20 @@ const navItems = [
 
 export function Sidebar() {
   return (
-    <div className="flex h-full w-64 flex-col border-r bg-white">
+    <div
+      className="flex h-full w-64 flex-col border-r"
+      style={{
+        background: 'var(--color-bg-elevated)',
+        borderColor: 'var(--color-border-subtle)',
+      }}
+    >
       {/* Logo / Brand */}
-      <div className="flex h-16 items-center border-b px-6">
-        <h1 className="text-xl font-bold text-gray-900">
-          DPZ Analytics
+      <div
+        className="flex h-16 items-center border-b px-6"
+        style={{ borderColor: 'var(--color-border-subtle)' }}
+      >
+        <h1 className="text-xl font-semibold flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
+          🍕 DPZ Analytics
         </h1>
       </div>
 
@@ -52,14 +61,32 @@ export function Sidebar() {
           <NavLink
             key={item.href}
             to={item.href}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-gray-100 text-gray-900"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              )
-            }
+            style={({ isActive }) => ({
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              padding: '0.5rem 0.75rem',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+              borderRadius: 'var(--radius-md)',
+              transition: 'all 0.15s ease',
+              background: isActive ? 'var(--color-accent)' : 'transparent',
+              color: isActive ? 'white' : 'var(--color-text-secondary)',
+            })}
+            onMouseEnter={(e) => {
+              const isActive = e.currentTarget.getAttribute('aria-current') === 'page';
+              if (!isActive) {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                e.currentTarget.style.color = 'var(--color-text-primary)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              const isActive = e.currentTarget.getAttribute('aria-current') === 'page';
+              if (!isActive) {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+              }
+            }}
           >
             <item.icon className="h-5 w-5" />
             {item.title}
@@ -68,12 +95,23 @@ export function Sidebar() {
       </nav>
 
       {/* Footer / User Info */}
-      <div className="border-t p-4">
+      <div
+        className="border-t p-4"
+        style={{ borderColor: 'var(--color-border-subtle)' }}
+      >
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-full bg-gray-200" />
+          <div
+            className="h-8 w-8 rounded-full flex items-center justify-center text-sm font-semibold"
+            style={{
+              background: 'var(--color-accent)',
+              color: 'white',
+            }}
+          >
+            U
+          </div>
           <div className="flex-1 text-sm">
-            <p className="font-medium text-gray-900">User</p>
-            <p className="text-xs text-gray-500">user@dominos.com</p>
+            <p className="font-medium" style={{ color: 'var(--color-text-primary)' }}>User</p>
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>user@dominos.com</p>
           </div>
         </div>
       </div>

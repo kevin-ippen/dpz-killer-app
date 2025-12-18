@@ -32,11 +32,11 @@ export function InsightsPanel({
     <Card>
       <CardHeader>
         <div className="flex items-center gap-2">
-          <Lightbulb className="h-5 w-5 text-yellow-500" />
+          <Lightbulb className="h-5 w-5" style={{ color: 'var(--color-warning)' }} />
           <CardTitle>{title}</CardTitle>
         </div>
         {description && (
-          <p className="text-sm text-gray-500 mt-1">{description}</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)' }}>{description}</p>
         )}
       </CardHeader>
       <CardContent>
