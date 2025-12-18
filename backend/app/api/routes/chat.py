@@ -114,8 +114,35 @@ class MASStreamingClient:
 
             url = f"{host}{endpoint_url}"
 
-            # Get auth header from config
-            auth_header = config.authenticate()
+            # Get OAuth token using Databricks Apps M2M credentials
+            # In Databricks Apps, CLIENT_ID and CLIENT_SECRET are automatically provided
+            client_id = os.getenv('DATABRICKS_CLIENT_ID')
+            client_secret = os.getenv('DATABRICKS_CLIENT_SECRET')
+
+            if not client_id or not client_secret:
+                raise Exception("Databricks Apps OAuth credentials not found in environment")
+
+            # Get OAuth access token
+            token_url = f"{host}/oidc/v1/token"
+            logger.info(f"[MAS] Getting OAuth token from: {token_url}")
+
+            async with httpx.AsyncClient() as token_client:
+                token_response = await token_client.post(
+                    token_url,
+                    data={
+                        'grant_type': 'client_credentials',
+                        'scope': 'all-apis'
+                    },
+                    auth=(client_id, client_secret)
+                )
+                token_response.raise_for_status()
+                token_data = token_response.json()
+                access_token = token_data['access_token']
+
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'Content-Type': 'application/json'
+            }
 
             logger.info(f"[MAS] Streaming from: {url}")
 
@@ -124,7 +151,7 @@ class MASStreamingClient:
                     "POST",
                     url,
                     json=payload,
-                    headers={"Authorization": auth_header.get("Authorization", "")}
+                    headers=headers
                 ) as response:
                     response.raise_for_status()
 
