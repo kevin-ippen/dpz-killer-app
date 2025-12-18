@@ -30,51 +30,14 @@ logger = logging.getLogger(__name__)
 # OBO Authentication Handler
 # ============================================================================
 
-@cl.header_auth_callback
-def auth_from_header(headers: Dict[str, str]) -> cl.User:
-    """
-    Extract OBO authentication from Databricks App headers
-
-    Databricks Apps automatically forwards the user's access token via
-    x-forwarded-access-token header for secure OBO authentication.
-    """
-    import jwt
-    import datetime
-
-    token = headers.get("x-forwarded-access-token")
-    email = headers.get("x-forwarded-email") or headers.get("x-forwarded-user")
-
-    if not token or not email:
-        logger.warning("[AUTH] Missing OBO token or email in headers")
-        return None
-
-    try:
-        # Decode token to get expiration (without verification)
-        decoded = jwt.decode(token, options={"verify_signature": False})
-        exp = datetime.datetime.fromtimestamp(decoded["exp"], datetime.timezone.utc)
-        time_left = (exp - datetime.datetime.now(datetime.timezone.utc)).total_seconds()
-
-        logger.info(f"[AUTH] User authenticated: {email}, token valid for {time_left:.0f}s")
-
-        # Serialize headers (ensure JSON-compatible)
-        headers_dict = {k: v for k, v in headers.items()}
-
-        return cl.User(
-            identifier=email,
-            email=email,
-            display_name=email.split("@")[0],
-            provider="obo",
-            metadata={
-                "auth_type": "obo",
-                "obo_token": token,
-                "obo_token_expiry": exp.isoformat(),
-                "headers": headers_dict
-            }
-        )
-
-    except Exception as e:
-        logger.error(f"[AUTH] Error processing OBO token: {e}", exc_info=True)
-        return None
+# Skip OBO auth - will rely on app-level authentication
+# OBO auth only works in Databricks Apps with proper OAuth setup
+# For now, we'll use the app's service principal credentials
+#
+# @cl.header_auth_callback
+# def auth_from_header(headers: Dict[str, str]) -> cl.User:
+#     """OBO authentication (disabled for PAT environments)"""
+#     pass
 
 
 # ============================================================================

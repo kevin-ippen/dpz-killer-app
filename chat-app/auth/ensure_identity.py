@@ -34,46 +34,27 @@ def _is_token_expired(token: str) -> bool:
 
 async def ensure_identity() -> Optional[Identity]:
     """
-    Ensure we have valid OBO authentication for the current session
+    Ensure we have valid authentication for the current session
+
+    For PAT environments, we create a dummy identity that will use
+    the app's service principal credentials (from DATABRICKS_TOKEN env var)
 
     Returns:
-        Identity object with OBO token source, or None if auth failed
+        Identity object with token source, or None if auth failed
     """
-    if not cl.context.session:
-        logger.error("[AUTH] No session context available")
-        return None
+    from config import settings
 
-    user = cl.context.session.user
-    if not user:
-        logger.warning("[AUTH] User not found for this session")
-        return None
+    # For PAT environments, create a simple identity using app credentials
+    # The app's DATABRICKS_TOKEN will be used for MAS calls
+    class AppTokenSource:
+        """Token source that uses app's service principal token"""
+        def bearer_token(self) -> str:
+            return settings.databricks_token
 
-    # Extract OBO token and headers from user metadata
-    if not user.metadata:
-        logger.error("[AUTH] No metadata found on user - OBO auth not configured")
-        return None
-
-    stored_token = user.metadata.get("obo_token")
-    stored_headers = user.metadata.get("headers")
-
-    if not stored_token or not stored_headers:
-        logger.error("[AUTH] No OBO token/headers in user metadata")
-        return None
-
-    # Check if token is still valid
-    if _is_token_expired(stored_token):
-        logger.error("[AUTH] OBO token is expired - user needs to re-authenticate")
-        return None
-
-    # Create token source from stored headers
-    def _headers_getter() -> Dict[str, str]:
-        return stored_headers
-
-    token_source = OboTokenSource(_headers_getter)
-
-    logger.info(f"[AUTH] Valid OBO authentication for user: {user.email}")
+    # Create a dummy identity for the session
+    logger.info("[AUTH] Using app-level PAT authentication")
     return Identity(
-        email=user.email or user.identifier,
-        display_name=user.display_name,
-        token_source=token_source
+        email="app-user@databricks.com",
+        display_name="Analytics User",
+        token_source=AppTokenSource()
     )
