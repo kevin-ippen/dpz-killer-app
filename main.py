@@ -24,20 +24,32 @@ logger.info("✅ Backend app imported")
 try:
     # Add chat-app to path
     chat_app_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'chat-app')
-    sys.path.insert(0, chat_app_path)
+    if chat_app_path not in sys.path:
+        sys.path.insert(0, chat_app_path)
 
-    # Import Chainlit and create the chat app
+    logger.info(f"Chat app path: {chat_app_path}")
+    logger.info(f"Chat app exists: {os.path.exists(os.path.join(chat_app_path, 'app.py'))}")
+
+    # Import Chainlit
     import chainlit as cl
+    logger.info("✅ Chainlit imported")
+
+    # Import Starlette for mounting
     from starlette.applications import Starlette
     from starlette.routing import Mount
 
-    # Import chat-app/app.py which registers Chainlit handlers
-    import app as chat_app_module
+    # Import the chat app module using a unique name
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("chainlit_app", os.path.join(chat_app_path, 'app.py'))
+    chat_app_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(chat_app_module)
+    logger.info("✅ Chat app module loaded")
 
     # Get Chainlit's ASGI app
     from chainlit.server import app as chainlit_asgi_app
+    logger.info("✅ Chainlit ASGI app retrieved")
 
-    # Mount both apps
+    # Mount both apps with Chainlit FIRST
     app = Starlette(
         routes=[
             Mount("/chat", chainlit_asgi_app),
@@ -49,7 +61,9 @@ try:
     logger.info("✅ Backend mounted at /")
 
 except Exception as e:
-    logger.warning(f"⚠️  Could not mount Chainlit: {e}")
+    import traceback
+    logger.error(f"❌ Could not mount Chainlit: {e}")
+    logger.error(f"   Traceback: {traceback.format_exc()}")
     logger.info("   Using backend only - Chat tab will show error")
     app = backend_app
 
