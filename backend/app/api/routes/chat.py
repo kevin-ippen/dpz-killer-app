@@ -87,12 +87,6 @@ class MASStreamingClient:
             # MAS expects: {"input": [...messages...], "stream": true}
             # The SDK will handle authentication automatically in Databricks Apps
 
-            from databricks.sdk.service.serving import QueryEndpointInput
-
-            # Create the request using SDK's raw query method
-            # We need to use the API client directly to send the correct payload format
-            api_client = self.client.api_client
-
             # Construct the full endpoint URL
             endpoint_url = f"/api/2.0/serving-endpoints/{self.endpoint_name}/invocations"
 
@@ -104,11 +98,10 @@ class MASStreamingClient:
 
             logger.info(f"[MAS] Calling endpoint with payload format: input array")
 
-            # Use the API client's do method to make streaming request
+            # Use httpx to make streaming request directly
             import httpx
-            from databricks.sdk.core import ApiClient
 
-            # Get the configured API client's credentials
+            # Get the configured credentials from WorkspaceClient
             config = self.client.config
 
             # Build full URL
