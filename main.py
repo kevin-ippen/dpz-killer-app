@@ -21,12 +21,21 @@ os.environ["CHAINLIT_ROOT_PATH"] = "/chat"
 backend_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backend')
 sys.path.insert(0, backend_path)
 
-# Create main FastAPI app
+# ============================================================================
+# IMPORT ALL BACKEND MODULES FIRST (before Chainlit imports)
+# ============================================================================
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse
+from datetime import datetime
 
+# Import backend modules
+from app.api.routes import items, metrics, chat as chat_api
+from app.models.schemas import HealthResponse
+from app.core.config import settings
+
+# Create main FastAPI app
 app = FastAPI(
     title="Domino's Analytics Dashboard",
     version="1.0.0",
@@ -51,7 +60,7 @@ try:
     chat_app_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'chat-app')
     sys.path.insert(0, chat_app_path)
 
-    # Import Chainlit (after CHAINLIT_ROOT_PATH is set)
+    # Import Chainlit (after CHAINLIT_ROOT_PATH is set and backend modules imported)
     import chainlit as cl
 
     # Import the chat app module to initialize Chainlit handlers
@@ -78,10 +87,6 @@ except Exception as e:
 # ============================================================================
 # 2. INCLUDE BACKEND API ROUTES
 # ============================================================================
-from app.api.routes import items, metrics, chat as chat_api
-from app.models.schemas import HealthResponse
-from app.core.config import settings
-from datetime import datetime
 
 # Include API routers under /api prefix
 app.include_router(items.router, prefix="/api")
