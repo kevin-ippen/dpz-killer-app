@@ -349,8 +349,28 @@ function formatMarkdown(text: string): JSX.Element {
   const lines = text.split("\n");
   const elements: JSX.Element[] = [];
 
-  for (let i = 0; i < lines.length; i++) {
+  let i = 0;
+  while (i < lines.length) {
     const line = lines[i];
+
+    // Check for markdown tables (lines starting with |)
+    if (line.trim().startsWith("|")) {
+      const tableLines: string[] = [];
+      let j = i;
+
+      // Collect all consecutive table lines
+      while (j < lines.length && lines[j].trim().startsWith("|")) {
+        tableLines.push(lines[j]);
+        j++;
+      }
+
+      // Parse and render table
+      if (tableLines.length >= 2) {
+        elements.push(renderTable(tableLines, i));
+        i = j;
+        continue;
+      }
+    }
 
     // Headers
     if (line.startsWith("# ")) {
@@ -392,9 +412,64 @@ function formatMarkdown(text: string): JSX.Element {
         </p>
       );
     }
+
+    i++;
   }
 
   return <>{elements}</>;
+}
+
+// Render markdown table
+function renderTable(tableLines: string[], key: number): JSX.Element {
+  // Parse table rows
+  const rows = tableLines.map((line) =>
+    line
+      .trim()
+      .split("|")
+      .slice(1, -1) // Remove empty first and last elements
+      .map((cell) => cell.trim())
+  );
+
+  if (rows.length < 2) return <></>;
+
+  const headers = rows[0];
+  const dataRows = rows.slice(2); // Skip header and separator row
+
+  return (
+    <div key={key} className="overflow-x-auto my-4">
+      <table className="min-w-full border-collapse border border-[#006491] rounded-lg overflow-hidden">
+        <thead className="bg-[#006491] text-white">
+          <tr>
+            {headers.map((header, idx) => (
+              <th
+                key={idx}
+                className="px-4 py-2 text-left text-sm font-semibold border border-[#006491]"
+              >
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {dataRows.map((row, rowIdx) => (
+            <tr
+              key={rowIdx}
+              className={rowIdx % 2 === 0 ? "bg-white" : "bg-gray-50"}
+            >
+              {row.map((cell, cellIdx) => (
+                <td
+                  key={cellIdx}
+                  className="px-4 py-2 text-sm text-[#523416] border border-gray-200"
+                >
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 // Format inline markdown (bold, italic)
