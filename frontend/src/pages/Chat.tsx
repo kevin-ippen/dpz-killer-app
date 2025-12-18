@@ -218,28 +218,29 @@ I can help you analyze your business data across:
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col bg-[#FDFAF5]">
+    <div className="flex h-screen flex-col" style={{ background: 'var(--color-bg-app)' }}>
       {/* Header */}
-      <div className="border-b border-[#F8F3E9] bg-white px-6 py-3">
+      <div className="border-b px-6 py-4" style={{ borderColor: 'var(--color-border-subtle)', background: 'rgba(15, 23, 42, 0.8)' }}>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="flex items-center gap-2 text-xl font-medium tracking-tight text-[#523416]">
-              <Sparkles className="h-5 w-5 text-[#2F7FD9]" />
-              Analytics Assistant
+            <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
+              <Sparkles className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
+              🍕 Domino's Analytics Assistant
             </h1>
-            <p className="text-sm font-light text-[#B59D81]">
+            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
               Powered by Databricks Genie Spaces
             </p>
           </div>
 
           {/* Status indicator */}
-          <div className="flex items-center gap-2 text-sm text-[#B59D81]">
+          <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
             <span
               className={`h-2 w-2 rounded-full ${
-                isStreaming ? "animate-pulse bg-[#2F7FD9]" : "bg-green-500"
+                isStreaming ? "animate-pulse" : ""
               }`}
+              style={{ background: isStreaming ? 'var(--color-accent)' : 'var(--color-success)' }}
             />
-            <span className="font-light">
+            <span className="font-medium">
               {isStreaming ? "Thinking..." : "Ready"}
             </span>
           </div>
@@ -247,7 +248,7 @@ I can help you analyze your business data across:
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
         {messages.map((message) => (
           <div
             key={message.id}
@@ -256,11 +257,27 @@ I can help you analyze your business data across:
             }`}
           >
             <div
-              className={`max-w-3xl rounded-lg px-4 py-3 ${
+              className={`max-w-3xl px-5 py-4 ${
                 message.role === "user"
-                  ? "bg-[#2F7FD9] text-white"
-                  : "bg-white border border-[#F8F3E9] text-[#523416]"
+                  ? ""
+                  : ""
               }`}
+              style={
+                message.role === "user"
+                  ? {
+                      background: 'var(--color-accent)',
+                      color: 'white',
+                      borderRadius: 'var(--radius-lg)',
+                      boxShadow: 'var(--shadow-soft)',
+                    }
+                  : {
+                      background: 'rgba(15, 23, 42, 0.96)',
+                      border: '1px solid rgba(30, 41, 59, 0.8)',
+                      borderRadius: 'var(--radius-lg)',
+                      boxShadow: 'var(--shadow-soft)',
+                      color: 'var(--color-text-primary)',
+                    }
+              }
             >
               {/* Tool calls */}
               {message.toolCalls && message.toolCalls.length > 0 && (
@@ -268,25 +285,31 @@ I can help you analyze your business data across:
                   {message.toolCalls.map((tool, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center gap-2 rounded bg-[#F8F3E9] px-3 py-2 text-xs"
+                      className="flex items-center gap-2 px-3 py-2 text-xs font-medium"
+                      style={{
+                        background: 'var(--color-accent-soft)',
+                        border: '1px solid var(--color-accent-border)',
+                        borderRadius: 'var(--radius-pill)',
+                        color: 'var(--color-text-primary)',
+                      }}
                     >
                       {tool.status === "running" && (
-                        <Loader2 className="h-3 w-3 animate-spin text-[#2F7FD9]" />
+                        <Loader2 className="h-3 w-3 animate-spin" style={{ color: 'var(--color-accent)' }} />
                       )}
                       {tool.status === "complete" && (
-                        <CheckCircle2 className="h-3 w-3 text-green-600" />
+                        <CheckCircle2 className="h-3 w-3" style={{ color: 'var(--color-success)' }} />
                       )}
                       {tool.status === "error" && (
-                        <AlertCircle className="h-3 w-3 text-[#EC3115]" />
+                        <AlertCircle className="h-3 w-3" style={{ color: 'var(--color-danger)' }} />
                       )}
-                      <Database className="h-3 w-3 text-[#B59D81]" />
-                      <span className="font-medium text-[#523416]">
+                      <Database className="h-3 w-3" style={{ color: 'var(--color-text-secondary)' }} />
+                      <span>
                         {tool.name === "execute_genie_query"
                           ? "Querying Genie Space"
                           : tool.name}
                       </span>
                       {tool.status === "complete" && (
-                        <span className="ml-auto text-green-600">✓</span>
+                        <span className="ml-auto" style={{ color: 'var(--color-success)' }}>✓</span>
                       )}
                     </div>
                   ))}
@@ -300,9 +323,10 @@ I can help you analyze your business data across:
 
               {/* Timestamp */}
               <div
-                className={`mt-2 text-xs ${
-                  message.role === "user" ? "text-white/70" : "text-[#B59D81]"
-                }`}
+                className="mt-2 text-xs"
+                style={{
+                  color: message.role === "user" ? "rgba(255, 255, 255, 0.7)" : "var(--color-text-muted)",
+                }}
               >
                 {message.timestamp.toLocaleTimeString()}
               </div>
@@ -313,7 +337,7 @@ I can help you analyze your business data across:
       </div>
 
       {/* Input */}
-      <div className="border-t border-[#F8F3E9] bg-white px-6 py-4">
+      <div className="border-t px-6 py-4" style={{ borderColor: 'var(--color-border-subtle)', background: 'rgba(15, 23, 42, 0.8)' }}>
         <div className="flex gap-3">
           <input
             type="text"
@@ -322,12 +346,41 @@ I can help you analyze your business data across:
             onKeyPress={handleKeyPress}
             placeholder="Ask about your analytics data..."
             disabled={isStreaming}
-            className="flex-1 rounded-lg border border-[#F8F3E9] bg-[#FDFAF5] px-4 py-3 text-[#523416] placeholder-[#B59D81] focus:border-[#2F7FD9] focus:outline-none focus:ring-2 focus:ring-[#2F7FD9] focus:ring-opacity-20 disabled:opacity-50"
+            className="flex-1 px-4 py-3 outline-none transition-all disabled:opacity-50"
+            style={{
+              background: 'rgba(15, 23, 42, 0.8)',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 'var(--radius-pill)',
+              color: 'var(--color-text-primary)',
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = 'var(--color-accent)';
+              e.target.style.boxShadow = '0 0 0 3px var(--color-accent-soft)';
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = 'var(--color-border-subtle)';
+              e.target.style.boxShadow = 'none';
+            }}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isStreaming}
-            className="flex items-center gap-2 rounded-lg bg-[#2F7FD9] px-6 py-3 font-medium text-white transition-all hover:bg-[#2567B8] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-6 py-3 font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              background: 'var(--color-accent)',
+              color: 'white',
+              borderRadius: 'var(--radius-pill)',
+            }}
+            onMouseEnter={(e) => {
+              if (!e.currentTarget.disabled) {
+                e.currentTarget.style.background = 'var(--color-accent-strong)';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'var(--color-accent)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
           >
             {isStreaming ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -375,19 +428,19 @@ function formatMarkdown(text: string): JSX.Element {
     // Headers
     if (line.startsWith("# ")) {
       elements.push(
-        <h1 key={i} className="text-2xl font-medium mb-2 text-[#523416]">
+        <h1 key={i} className="text-2xl font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
           {line.slice(2)}
         </h1>
       );
     } else if (line.startsWith("## ")) {
       elements.push(
-        <h2 key={i} className="text-xl font-medium mb-2 text-[#523416]">
+        <h2 key={i} className="text-xl font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
           {line.slice(3)}
         </h2>
       );
     } else if (line.startsWith("### ")) {
       elements.push(
-        <h3 key={i} className="text-lg font-medium mb-2 text-[#523416]">
+        <h3 key={i} className="text-lg font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
           {line.slice(4)}
         </h3>
       );
@@ -395,7 +448,7 @@ function formatMarkdown(text: string): JSX.Element {
     // Bullet points
     else if (line.startsWith("- ")) {
       elements.push(
-        <li key={i} className="ml-4 text-[#523416]">
+        <li key={i} className="ml-4" style={{ color: 'var(--color-text-primary)' }}>
           {formatInline(line.slice(2))}
         </li>
       );
@@ -407,7 +460,7 @@ function formatMarkdown(text: string): JSX.Element {
     // Regular text
     else {
       elements.push(
-        <p key={i} className="text-[#523416]">
+        <p key={i} style={{ color: 'var(--color-text-primary)' }}>
           {formatInline(line)}
         </p>
       );
@@ -436,14 +489,28 @@ function renderTable(tableLines: string[], key: number): JSX.Element {
   const dataRows = rows.slice(2); // Skip header and separator row
 
   return (
-    <div key={key} className="overflow-x-auto my-4">
-      <table className="min-w-full border-collapse border border-[#006491] rounded-lg overflow-hidden">
-        <thead className="bg-[#006491] text-white">
+    <div
+      key={key}
+      className="overflow-x-auto my-4"
+      style={{
+        background: 'rgba(15, 23, 42, 0.8)',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--color-border-subtle)',
+      }}
+    >
+      <table className="min-w-full border-collapse">
+        <thead style={{ background: 'var(--color-accent)', color: 'white' }}>
           <tr>
             {headers.map((header, idx) => (
               <th
                 key={idx}
-                className="px-4 py-2 text-left text-sm font-semibold border border-[#006491]"
+                className="px-4 py-3 text-left font-semibold"
+                style={{
+                  fontSize: 'var(--text-xs)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+                }}
               >
                 {header}
               </th>
@@ -454,12 +521,19 @@ function renderTable(tableLines: string[], key: number): JSX.Element {
           {dataRows.map((row, rowIdx) => (
             <tr
               key={rowIdx}
-              className={rowIdx % 2 === 0 ? "bg-white" : "bg-gray-50"}
+              style={{
+                background: rowIdx % 2 === 0 ? 'rgba(15, 23, 42, 0.4)' : 'rgba(30, 41, 59, 0.4)',
+              }}
             >
               {row.map((cell, cellIdx) => (
                 <td
                   key={cellIdx}
-                  className="px-4 py-2 text-sm text-[#523416] border border-gray-200"
+                  className="px-4 py-2"
+                  style={{
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--color-text-primary)',
+                    borderBottom: '1px solid rgba(30, 41, 59, 0.5)',
+                  }}
                 >
                   {cell}
                 </td>
