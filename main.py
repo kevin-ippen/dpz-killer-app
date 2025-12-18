@@ -1,11 +1,12 @@
 """
-Main entry point for Databricks App with Chainlit integration
+Main entry point for Databricks App
+
+Clean version - no Chainlit mounting attempts!
 
 This module:
-1. Mounts Chainlit at /chat (FIRST to ensure proper routing)
-2. Includes backend API routes at /api
-3. Serves frontend static assets
-4. Provides SPA fallback for client-side routing (excluding /chat)
+1. Includes backend API routes at /api
+2. Serves frontend static assets
+3. Provides SPA fallback for client-side routing
 """
 import sys
 import os
@@ -18,13 +19,10 @@ logger = logging.getLogger(__name__)
 backend_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backend')
 sys.path.insert(0, backend_path)
 
-# ============================================================================
-# IMPORT ALL BACKEND MODULES FIRST (before Chainlit imports)
-# ============================================================================
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse
 from datetime import datetime
 
 # Import backend modules
@@ -51,65 +49,15 @@ app.add_middleware(
 )
 
 # ============================================================================
-# 1. MOUNT CHAINLIT FIRST (before any catch-all routes!)
-# ============================================================================
-try:
-    chat_app_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'chat-app')
-    sys.path.insert(0, chat_app_path)
-
-    # Import Chainlit
-    import chainlit as cl
-    from starlette.middleware.wsgi import WSGIMiddleware
-    from starlette.middleware import Middleware
-
-    # Import the chat app module to initialize Chainlit handlers
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("chainlit_app", os.path.join(chat_app_path, 'app.py'))
-    chat_app_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(chat_app_module)
-
-    # Get Chainlit's ASGI app
-    from chainlit.server import app as chainlit_asgi_app
-
-    # Wrap Chainlit app with root_path middleware so it knows it's at /chat
-    from starlette.applications import Starlette as StarletteApp
-    from starlette.routing import Mount
-
-    # Create a wrapper that sets root_path
-    class RootPathASGI:
-        def __init__(self, app, root_path: str):
-            self.app = app
-            self.root_path = root_path
-
-        async def __call__(self, scope, receive, send):
-            if scope["type"] in ("http", "websocket"):
-                # DIAGNOSTIC: Log that we're receiving requests
-                logger.info(f"🔍 RootPathASGI received {scope['type']} request: {scope.get('path', 'unknown')}")
-                # Set root_path so Chainlit knows it's mounted at /chat
-                # FastAPI mount already stripped /chat from the path
-                scope["root_path"] = self.root_path
-            await self.app(scope, receive, send)
-
-    # Wrap Chainlit with root_path
-    chainlit_with_root = RootPathASGI(chainlit_asgi_app, "/chat")
-
-    # Mount Chainlit at /chat - THIS MUST HAPPEN BEFORE CATCH-ALL ROUTES
-    app.mount("/chat", chainlit_with_root, name="chat")
-
-    logger.info("✅ Chainlit mounted at /chat with root_path middleware")
-except Exception as e:
-    logger.error(f"❌ Could not mount Chainlit: {e}")
-    import traceback
-    logger.error(traceback.format_exc())
-
-# ============================================================================
-# 2. INCLUDE BACKEND API ROUTES
+# API ROUTES
 # ============================================================================
 
 # Include API routers under /api prefix
 app.include_router(items.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
 app.include_router(chat_api.router, prefix="/api")
+
+logger.info("✅ API routes registered")
 
 # Health check endpoints
 @app.get("/health")
@@ -128,7 +76,7 @@ async def api_health_check():
     )
 
 # ============================================================================
-# 3. SERVE FRONTEND STATIC ASSETS
+# SERVE FRONTEND
 # ============================================================================
 frontend_dist = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend', 'dist')
 
@@ -147,37 +95,25 @@ if os.path.exists(frontend_dist):
         index_path = os.path.join(frontend_dist, "index.html")
         return FileResponse(index_path)
 
-    # ============================================================================
-    # 4. SPA FALLBACK (exclude /api, /assets, /health)
-    # ============================================================================
-    # NOTE: This catch-all route MUST be defined AFTER all mounts (especially /chat)
-    # The /chat mount above should intercept all /chat/* requests before they reach here
+    # SPA fallback for client-side routing
+    @app.get("/{full_path:path}")
+    async def spa_fallback(full_path: str):
+        """
+        Serve React app for client-side routing
 
-    # TEMPORARILY COMMENTED OUT TO TEST IF CATCH-ALL IS INTERFERING WITH /chat
-    # @app.get("/{full_path:path}")
-    # async def spa_fallback(full_path: str):
-    #     """
-    #     Serve React app for client-side routing
-    #
-    #     Explicitly exclude:
-    #     - /api/* - Backend API routes
-    #     - /assets/* - Static assets
-    #     - /health - Health check
-    #
-    #     Note: /chat/* is handled by the mount above and should never reach here
-    #     """
-    #     # These paths should be handled by other routes/mounts
-    #     # If we reach here for these paths, something is wrong with routing
-    #     if (full_path.startswith("api/") or
-    #         full_path.startswith("assets/") or
-    #         full_path == "health"):
-    #         raise HTTPException(status_code=404, detail="Not found")
-    #
-    #     # Serve index.html for all other routes (SPA routing)
-    #     index_path = os.path.join(frontend_dist, "index.html")
-    #     if os.path.exists(index_path):
-    #         return FileResponse(index_path)
-    #     raise HTTPException(status_code=404, detail="Frontend not built")
+        Exclude API and asset paths.
+        """
+        # Don't serve SPA for these paths
+        if (full_path.startswith("api/") or
+            full_path.startswith("assets/") or
+            full_path == "health"):
+            raise HTTPException(status_code=404, detail="Not found")
+
+        # Serve index.html for all other routes (SPA routing)
+        index_path = os.path.join(frontend_dist, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        raise HTTPException(status_code=404, detail="Frontend not built")
 else:
     logger.warning(f"❌ Frontend dist directory not found: {frontend_dist}")
     logger.info("Run 'npm run build' in frontend directory to build the frontend")
