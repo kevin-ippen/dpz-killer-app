@@ -8,25 +8,50 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "default", size = "default", ...props }, ref) => {
+  ({ className, variant = "default", size = "default", style, ...props }, ref) => {
+    const getVariantStyles = () => {
+      switch (variant) {
+        case "outline":
+          return {
+            background: 'transparent',
+            border: '1px solid var(--color-border-strong)',
+            color: 'var(--color-text-primary)',
+          };
+        case "ghost":
+          return {
+            background: 'transparent',
+            color: 'var(--color-text-secondary)',
+          };
+        case "destructive":
+          return {
+            background: 'var(--color-danger)',
+            color: 'white',
+          };
+        default: // "default"
+          return {
+            background: 'var(--color-accent)',
+            color: 'white',
+          };
+      }
+    };
+
     return (
       <button
         className={cn(
-          "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-          {
-            "bg-gray-900 text-white hover:bg-gray-800": variant === "default",
-            "border border-gray-300 bg-white hover:bg-gray-50": variant === "outline",
-            "hover:bg-gray-100": variant === "ghost",
-            "bg-red-600 text-white hover:bg-red-700": variant === "destructive",
-          },
+          "inline-flex items-center justify-center text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50",
           {
             "h-10 px-4 py-2": size === "default",
-            "h-9 rounded-md px-3": size === "sm",
-            "h-11 rounded-md px-8": size === "lg",
+            "h-9 px-3": size === "sm",
+            "h-11 px-8": size === "lg",
             "h-10 w-10": size === "icon",
           },
           className
         )}
+        style={{
+          borderRadius: 'var(--radius-pill)',
+          ...getVariantStyles(),
+          ...style,
+        }}
         ref={ref}
         {...props}
       />
