@@ -16,7 +16,8 @@ import { useEffect, useState } from "react";
 
 // Chainlit app URL (will be running on same host in production)
 // In Databricks Apps, both frontend and chat-app are served together
-const CHAINLIT_URL = import.meta.env.VITE_CHAINLIT_URL || "/chat";
+// Note: Chainlit expects trailing slash for proper routing
+const CHAINLIT_URL = import.meta.env.VITE_CHAINLIT_URL || "/chat/";
 
 export function Chat() {
   const [iframeHeight, setIframeHeight] = useState("100%");

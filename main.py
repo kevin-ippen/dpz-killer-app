@@ -72,13 +72,8 @@ try:
     # Get Chainlit's ASGI app
     from chainlit.server import app as chainlit_asgi_app
 
-    # Mount Chainlit at /chat
+    # Mount Chainlit at /chat (handles both /chat and /chat/ paths)
     app.mount("/chat", chainlit_asgi_app, name="chat")
-
-    # Redirect /chat to /chat/ for better UX
-    @app.get("/chat")
-    async def chat_no_slash():
-        return RedirectResponse(url="/chat/")
 
     logger.info("✅ Chainlit mounted at /chat")
 except Exception as e:
