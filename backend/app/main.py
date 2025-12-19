@@ -160,60 +160,109 @@ class SchemaAssets(BaseModel):
     tables: List[TableInfo]
     volumes: List[VolumeInfo]
 
+# In-memory cache for schema manifest
+_schema_manifest_cache: List[SchemaAssets] | None = None
+_cache_timestamp: float = 0
+
+
+def generate_schema_manifest() -> List[SchemaAssets]:
+    """
+    Generate schema manifest by querying information_schema.
+    Called at startup and when cache expires.
+    """
+    from app.repositories.databricks_repo import databricks_repo
+    import time
+
+    logger.info("Generating schema manifest from information_schema...")
+
+    schemas = [
+        ("main", "dominos_analytics"),
+        ("main", "dominos_realistic"),
+        ("main", "dominos_files"),
+    ]
+
+    results = []
+    for catalog, schema in schemas:
+        tables = []
+        volumes = []
+
+        # Get tables
+        try:
+            tables_query = f"""
+            SELECT table_name, table_catalog || '.' || table_schema || '.' || table_name as full_name,
+                   table_type, comment
+            FROM system.information_schema.tables
+            WHERE table_catalog = '{catalog}' AND table_schema = '{schema}'
+            ORDER BY table_name
+            """
+            table_results = databricks_repo.execute_query(tables_query)
+            tables = [TableInfo(**row) for row in table_results]
+            logger.info(f"Found {len(tables)} tables in {catalog}.{schema}")
+        except Exception as e:
+            logger.warning(f"Failed to list tables in {catalog}.{schema}: {e}")
+
+        # Get volumes
+        try:
+            volumes_query = f"""
+            SELECT volume_name as name,
+                   volume_catalog || '.' || volume_schema || '.' || volume_name as full_name,
+                   volume_type, storage_location, comment
+            FROM system.information_schema.volumes
+            WHERE volume_catalog = '{catalog}' AND volume_schema = '{schema}'
+            ORDER BY volume_name
+            """
+            volume_results = databricks_repo.execute_query(volumes_query)
+            volumes = [VolumeInfo(**row) for row in volume_results]
+            logger.info(f"Found {len(volumes)} volumes in {catalog}.{schema}")
+        except Exception as e:
+            logger.warning(f"Failed to list volumes in {catalog}.{schema}: {e}")
+
+        results.append(SchemaAssets(catalog=catalog, schema=schema, tables=tables, volumes=volumes))
+
+    logger.info(f"Schema manifest generated: {sum(len(s.tables) + len(s.volumes) for s in results)} total assets")
+    return results
+
 
 @app.get(f"{settings.API_PREFIX}/explore/schemas", response_model=List[SchemaAssets])
 async def get_schemas_temp():
-    """TEMPORARY: Get schema assets using SQL (workaround)"""
+    """
+    Get schema assets from pre-generated cache.
+    Cache is populated at startup and auto-refreshes after 1 hour.
+    """
+    global _schema_manifest_cache, _cache_timestamp
+    import time
+
+    # Auto-refresh cache if empty or older than 1 hour
+    cache_age = time.time() - _cache_timestamp
+    if _schema_manifest_cache is None or cache_age > 3600:
+        logger.info(f"Cache {'empty' if _schema_manifest_cache is None else f'stale ({cache_age:.0f}s old)'}, refreshing...")
+        try:
+            _schema_manifest_cache = generate_schema_manifest()
+            _cache_timestamp = time.time()
+        except Exception as e:
+            logger.error(f"Failed to refresh schema manifest: {e}")
+            if _schema_manifest_cache is None:
+                raise HTTPException(status_code=500, detail="Failed to load schema manifest")
+
+    return _schema_manifest_cache
+
+
+@app.post(f"{settings.API_PREFIX}/explore/schemas/refresh")
+async def refresh_schemas():
+    """Force refresh the schema manifest cache (admin endpoint)"""
+    global _schema_manifest_cache, _cache_timestamp
     try:
-        from app.repositories.databricks_repo import databricks_repo
-
-        schemas = [
-            ("main", "dominos_analytics"),
-            ("main", "dominos_realistic"),
-            ("main", "dominos_files"),
-        ]
-
-        results = []
-        for catalog, schema in schemas:
-            tables = []
-            volumes = []
-
-            # Get tables
-            try:
-                tables_query = f"""
-                SELECT table_name, table_catalog || '.' || table_schema || '.' || table_name as full_name,
-                       table_type, comment
-                FROM system.information_schema.tables
-                WHERE table_catalog = '{catalog}' AND table_schema = '{schema}'
-                ORDER BY table_name
-                """
-                table_results = databricks_repo.execute_query(tables_query)
-                tables = [TableInfo(**row) for row in table_results]
-                logger.info(f"Found {len(tables)} tables in {catalog}.{schema}")
-            except Exception as e:
-                logger.warning(f"Failed to list tables in {catalog}.{schema}: {e}")
-
-            # Get volumes
-            try:
-                volumes_query = f"""
-                SELECT volume_name as name,
-                       volume_catalog || '.' || volume_schema || '.' || volume_name as full_name,
-                       volume_type, storage_location, comment
-                FROM system.information_schema.volumes
-                WHERE volume_catalog = '{catalog}' AND volume_schema = '{schema}'
-                ORDER BY volume_name
-                """
-                volume_results = databricks_repo.execute_query(volumes_query)
-                volumes = [VolumeInfo(**row) for row in volume_results]
-                logger.info(f"Found {len(volumes)} volumes in {catalog}.{schema}")
-            except Exception as e:
-                logger.warning(f"Failed to list volumes in {catalog}.{schema}: {e}")
-
-            results.append(SchemaAssets(catalog=catalog, schema=schema, tables=tables, volumes=volumes))
-
-        return results
+        _schema_manifest_cache = generate_schema_manifest()
+        _cache_timestamp = time.time()
+        total_assets = sum(len(s.tables) + len(s.volumes) for s in _schema_manifest_cache)
+        return {
+            "status": "success",
+            "message": "Schema manifest refreshed",
+            "schemas": len(_schema_manifest_cache),
+            "total_assets": total_assets
+        }
     except Exception as e:
-        logger.error(f"Error fetching schemas: {e}", exc_info=True)
+        logger.error(f"Failed to refresh schema manifest: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -267,6 +316,9 @@ async def startup_event():
     - Cache warming
     - Background task setup
     """
+    global _schema_manifest_cache, _cache_timestamp
+    import time
+
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     logger.info(f"Environment: {settings.ENVIRONMENT}")
     logger.info(f"Debug mode: {settings.DEBUG}")
@@ -276,6 +328,16 @@ async def startup_event():
         logger.info(f"Databricks host configured: {settings.DATABRICKS_HOST}")
     else:
         logger.warning("Databricks credentials not configured - data access will fail")
+
+    # Pre-generate schema manifest at startup for faster Explorer page loads
+    logger.info("Pre-generating schema manifest...")
+    try:
+        _schema_manifest_cache = generate_schema_manifest()
+        _cache_timestamp = time.time()
+        logger.info("Schema manifest pre-generated successfully")
+    except Exception as e:
+        logger.error(f"Failed to pre-generate schema manifest: {e}")
+        logger.warning("Explorer page will generate manifest on first request")
 
 
 @app.on_event("shutdown")
