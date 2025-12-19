@@ -20,7 +20,7 @@ import { MetricTooltip } from "@/components/MetricTooltip";
 import { FilterPills } from "@/components/FilterPills";
 import { InsightsPanel } from "@/components/InsightsPanel";
 import { ForecastChart } from "@/components/charts/ForecastChart";
-import { filterCompleteMonths, getDateRangeLabel, getCompleteMonthsDateRange } from "@/lib/utils";
+import { filterCompleteMonths, getDateRangeLabel } from "@/lib/utils";
 import { generateInsights } from "@/lib/generateInsights";
 import { exportToCSV, exportToJSON } from "@/lib/exportData";
 import { detectAnomalies, detectSpikesAndDrops } from "@/lib/anomalyDetection";
@@ -78,8 +78,19 @@ export function Dashboard() {
     }
   };
 
-  // Calculate date range for API calls - using complete months only
-  const { startDate, endDate } = getCompleteMonthsDateRange(parseInt(dateRange));
+  // Calculate date range for API calls
+  const getDateRange = (months: string) => {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - parseInt(months));
+
+    return {
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0],
+    };
+  };
+
+  const { startDate, endDate } = getDateRange(dateRange);
 
   // Fetch dashboard metrics (with date filter so it updates)
   const { data: metrics, isLoading: metricsLoading } = useQuery({
@@ -139,15 +150,16 @@ export function Dashboard() {
     : channelBreakdown?.filter((item) => item.channel === channel);
 
   // Apply complete months filter to time-series data
+  // Note: Don't pass targetMonths since backend already filtered by date range
   const completeRevenueTrend = useMemo(() => {
     if (!revenueTrend) return [];
-    return filterCompleteMonths(revenueTrend, parseInt(dateRange));
-  }, [revenueTrend, dateRange]);
+    return filterCompleteMonths(revenueTrend); // Only exclude current incomplete month
+  }, [revenueTrend]);
 
   const completeGmvTrend = useMemo(() => {
     if (!gmvTrend) return [];
-    return filterCompleteMonths(gmvTrend, parseInt(dateRange));
-  }, [gmvTrend, dateRange]);
+    return filterCompleteMonths(gmvTrend); // Only exclude current incomplete month
+  }, [gmvTrend]);
 
   // Prepare active filters for FilterPills
   const activeFilters = useMemo(() => {

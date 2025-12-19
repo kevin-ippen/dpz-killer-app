@@ -61,6 +61,23 @@ export function FullTableView({ block }: FullTableViewProps) {
 
   // Render chart based on type
   const renderChart = () => {
+    // Check if we have valid data
+    if (!data || data.length === 0) {
+      return (
+        <div className="flex items-center justify-center h-full text-sm" style={{ color: "var(--color-text-secondary)" }}>
+          No data available to chart. Table may contain non-numeric values.
+        </div>
+      );
+    }
+
+    if (!dataKeys || dataKeys.length === 0) {
+      return (
+        <div className="flex items-center justify-center h-full text-sm" style={{ color: "var(--color-text-secondary)" }}>
+          No numeric columns found to chart.
+        </div>
+      );
+    }
+
     if (chartType === "pie") {
       return (
         <ResponsiveContainer width="100%" height="100%">
@@ -301,7 +318,7 @@ export function FullTableView({ block }: FullTableViewProps) {
             </tbody>
           </table>
         ) : (
-          <div style={{ width: "100%", height: "100%", padding: "1rem" }}>
+          <div style={{ width: "100%", height: "600px", padding: "1rem" }}>
             {renderChart()}
           </div>
         )}
