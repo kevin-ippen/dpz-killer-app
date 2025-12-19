@@ -329,6 +329,7 @@ class MASStreamingClient:
 
                                         # Special handling for Genie/analytics queries - extract chart reference
                                         # Match various tool names: execute_genie_query, agent-sales-analytics, etc.
+                                        logger.info(f"[MAS] Checking if tool is analytics-related: tool_name='{tool_name}'")
                                         if any(keyword in tool_name.lower() for keyword in ["genie", "analytics", "sales", "query"]):
                                             logger.info(f"[MAS] Detected analytics/query tool: {tool_name}")
                                             logger.info(f"[MAS] Tool output structure: {json.dumps(tool_output, indent=2)[:1000]}")
