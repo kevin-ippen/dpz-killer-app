@@ -6,6 +6,7 @@ from Unity Catalog schemas.
 """
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import Response
 from pydantic import BaseModel
 from databricks.sdk import WorkspaceClient
 import logging
@@ -84,7 +85,7 @@ async def get_all_schemas():
 
         for catalog, schema in schemas:
             try:
-                schema_assets = await get_schema_assets(client, catalog, schema)
+                schema_assets = get_schema_assets(client, catalog, schema)
                 results.append(schema_assets)
             except Exception as e:
                 logger.warning(f"Failed to fetch {catalog}.{schema}: {e}")
@@ -103,7 +104,7 @@ async def get_all_schemas():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def get_schema_assets(client: WorkspaceClient, catalog: str, schema: str) -> SchemaAssets:
+def get_schema_assets(client: WorkspaceClient, catalog: str, schema: str) -> SchemaAssets:
     """Get all tables and volumes from a schema"""
     tables = []
     volumes = []
@@ -233,3 +234,53 @@ async def preview_table(
     except Exception as e:
         logger.error(f"Error previewing table {catalog}.{schema}.{table}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/files/proxy")
+async def proxy_file(path: str = Query(..., description="Full Unity Catalog volume path")):
+    """
+    Proxy endpoint for Unity Catalog volume files (especially PDFs)
+
+    This endpoint fetches files from Unity Catalog volumes with proper
+    authentication and returns them with headers suitable for browser embedding.
+
+    Args:
+        path: Full path to file (e.g., /Volumes/main/schema/volume/file.pdf)
+
+    Returns:
+        File content with appropriate Content-Type headers
+    """
+    try:
+        client = WorkspaceClient()
+
+        logger.info(f"Proxying file from UC: {path}")
+
+        # Read file content from Unity Catalog
+        file_content = client.files.download(path).contents.read()
+
+        # Determine content type based on file extension
+        content_type = "application/octet-stream"
+        if path.lower().endswith('.pdf'):
+            content_type = "application/pdf"
+        elif path.lower().endswith('.png'):
+            content_type = "image/png"
+        elif path.lower().endswith('.jpg') or path.lower().endswith('.jpeg'):
+            content_type = "image/jpeg"
+        elif path.lower().endswith('.txt'):
+            content_type = "text/plain"
+        elif path.lower().endswith('.json'):
+            content_type = "application/json"
+
+        # Return file with appropriate headers for embedding
+        return Response(
+            content=file_content,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": "inline",  # Display in browser, not download
+                "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error proxying file {path}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch file: {str(e)}")

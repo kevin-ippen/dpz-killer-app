@@ -14,9 +14,22 @@ interface FullPDFViewProps {
 export function FullPDFView({ block }: FullPDFViewProps) {
   const { title, url, page } = block;
 
-  // For Unity Catalog volumes, we may need to proxy the request
-  // For now, embed directly (works if user has access)
-  const embedUrl = page ? `${url}#page=${page}` : url;
+  // Check if this is a Unity Catalog volume path
+  const isUCVolume = url.startsWith('/Volumes/') || url.includes('/Volumes/');
+
+  // For Unity Catalog volumes, use proxy endpoint
+  // For external URLs, embed directly
+  let embedUrl = url;
+  if (isUCVolume) {
+    // Route through backend proxy which handles authentication
+    const encodedPath = encodeURIComponent(url);
+    embedUrl = `/api/explore/files/proxy?path=${encodedPath}`;
+  }
+
+  // Add page anchor for PDFs (after proxy URL if applicable)
+  if (page && embedUrl) {
+    embedUrl = `${embedUrl}#page=${page}`;
+  }
 
   return (
     <div
@@ -52,7 +65,7 @@ export function FullPDFView({ block }: FullPDFViewProps) {
           </div>
         </div>
         <a
-          href={url}
+          href={isUCVolume ? embedUrl.split('#')[0] : url}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1 px-3 py-1 text-xs rounded border transition-colors"
