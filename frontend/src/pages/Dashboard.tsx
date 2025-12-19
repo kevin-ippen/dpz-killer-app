@@ -486,7 +486,7 @@ export function Dashboard() {
               loading={metricsLoading}
             />
             <MetricCard
-              label={<MetricTooltip term="CSAT">Customer Satisfaction</MetricTooltip>}
+              label={<MetricTooltip term="CSAT">Customer Satisfaction (out of 5)</MetricTooltip>}
               value={metrics?.customer_satisfaction || 0}
               format="number"
               delta={{ value: -1.5, isPositive: false }}
@@ -556,13 +556,22 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-6 lg:grid-cols-2">
-                <LineChart
+                <ComboChart
                   title="Revenue vs Orders (Complete Months)"
                   data={completeRevenueTrend || []}
                   xKey="month"
-                  yKeys={["revenue", "orders"]}
-                  colors={["#3b82f6", "#10b981"]}
-                  format="currency"
+                  leftYAxis={{
+                    key: "revenue",
+                    label: "Revenue ($)",
+                    color: "#3b82f6",
+                    type: "bar",
+                  }}
+                  rightYAxis={{
+                    key: "orders",
+                    label: "Orders",
+                    color: "#10b981",
+                    type: "line",
+                  }}
                   isLoading={trendLoading}
                 />
                 <BarChart
@@ -570,7 +579,7 @@ export function Dashboard() {
                   data={completeRevenueTrend?.slice(-12) || []}
                   xKey="month"
                   yKeys={["revenue"]}
-                  colors={["#8b5cf6"]}
+                  colors={["#3b82f6"]}
                   format="currency"
                   isLoading={trendLoading}
                 />
