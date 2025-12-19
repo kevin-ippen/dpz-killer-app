@@ -67,13 +67,15 @@ class SchemaAssets(BaseModel):
 @router.get("/schemas", response_model=List[SchemaAssets])
 async def get_all_schemas():
     """
-    Get assets from all configured schemas:
+    Get assets from all configured schemas using SQL information_schema:
     - main.dominos_analytics
     - main.dominos_realistic
     - main.dominos_files
+
+    Uses SQL queries instead of SDK APIs to work with existing permissions.
     """
     try:
-        client = WorkspaceClient()
+        from app.repositories.databricks_repo import databricks_repo
 
         schemas = [
             ("main", "dominos_analytics"),
@@ -85,7 +87,7 @@ async def get_all_schemas():
 
         for catalog, schema in schemas:
             try:
-                schema_assets = get_schema_assets(client, catalog, schema)
+                schema_assets = get_schema_assets_sql(databricks_repo, catalog, schema)
                 results.append(schema_assets)
             except Exception as e:
                 logger.warning(f"Failed to fetch {catalog}.{schema}: {e}")
@@ -104,41 +106,73 @@ async def get_all_schemas():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def get_schema_assets(client: WorkspaceClient, catalog: str, schema: str) -> SchemaAssets:
-    """Get all tables and volumes from a schema"""
+def get_schema_assets_sql(repo, catalog: str, schema: str) -> SchemaAssets:
+    """
+    Get all tables and volumes from a schema using SQL information_schema queries.
+
+    This approach uses the same SQL permissions as chat queries, avoiding
+    potential SDK API permission issues.
+    """
     tables = []
     volumes = []
 
-    # Get tables
+    # Get tables from information_schema
     try:
-        table_list = client.tables.list(catalog_name=catalog, schema_name=schema)
-        for table in table_list:
+        tables_query = f"""
+        SELECT
+            table_name,
+            table_catalog || '.' || table_schema || '.' || table_name as full_name,
+            table_type,
+            comment
+        FROM system.information_schema.tables
+        WHERE table_catalog = '{catalog}'
+        AND table_schema = '{schema}'
+        ORDER BY table_name
+        """
+
+        table_results = repo.execute_query(tables_query)
+
+        for row in table_results:
             tables.append(TableInfo(
-                name=table.name,
-                full_name=table.full_name,
-                table_type=table.table_type.value if table.table_type else None,
-                data_source_format=table.data_source_format.value if table.data_source_format else None,
-                storage_location=table.storage_location,
-                comment=table.comment,
-                created_at=table.created_at,
-                updated_at=table.updated_at,
+                name=row.get("table_name"),
+                full_name=row.get("full_name"),
+                table_type=row.get("table_type"),
+                comment=row.get("comment"),
             ))
+
+        logger.info(f"Found {len(tables)} tables in {catalog}.{schema}")
+
     except Exception as e:
         logger.warning(f"Failed to list tables in {catalog}.{schema}: {e}")
 
-    # Get volumes
+    # Get volumes from information_schema
     try:
-        volume_list = client.volumes.list(catalog_name=catalog, schema_name=schema)
-        for volume in volume_list:
+        volumes_query = f"""
+        SELECT
+            volume_name,
+            volume_catalog || '.' || volume_schema || '.' || volume_name as full_name,
+            volume_type,
+            storage_location,
+            comment
+        FROM system.information_schema.volumes
+        WHERE volume_catalog = '{catalog}'
+        AND volume_schema = '{schema}'
+        ORDER BY volume_name
+        """
+
+        volume_results = repo.execute_query(volumes_query)
+
+        for row in volume_results:
             volumes.append(VolumeInfo(
-                name=volume.name,
-                full_name=volume.full_name,
-                volume_type=volume.volume_type.value if volume.volume_type else None,
-                storage_location=volume.storage_location,
-                comment=volume.comment,
-                created_at=volume.created_at,
-                updated_at=volume.updated_at,
+                name=row.get("volume_name"),
+                full_name=row.get("full_name"),
+                volume_type=row.get("volume_type"),
+                storage_location=row.get("storage_location"),
+                comment=row.get("comment"),
             ))
+
+        logger.info(f"Found {len(volumes)} volumes in {catalog}.{schema}")
+
     except Exception as e:
         logger.warning(f"Failed to list volumes in {catalog}.{schema}: {e}")
 
