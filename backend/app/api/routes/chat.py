@@ -59,6 +59,15 @@ class StreamChatRequest(BaseModel):
 class MASStreamingClient:
     """Client for streaming responses from MAS endpoint"""
 
+    # Mapping of agent names to their Genie space IDs
+    AGENT_SPACE_MAPPING = {
+        "agent-executive-finance-analytics": "01f0d9ef33dc133a9d6a107ee87db350",
+        "agent-sales-analytics": "01f0d9ef373a1506b11d2cb97e212664",
+        "agent-operations-analytics": "01f0d9ef366215dfbebe9d8aa0025e62",
+        "agent-customer-analytics": "01f0d9ef359218ebac1354c889609c9e",
+        "agent-marketing-performance-analytics": "01f0d9ef34b3152b8ac35aa8e180f37b",
+    }
+
     def __init__(self):
         self.client = WorkspaceClient()
         self.endpoint_name = os.getenv("MAS_ENDPOINT_NAME", "mas-3d3b5439-endpoint")
@@ -132,6 +141,85 @@ class MASStreamingClient:
             logger.error(f"[GENIE] Failed to query Genie Space: {e}", exc_info=True)
             return None
 
+    def poll_genie_space_for_recent_charts(self, space_id: str, after_timestamp: float) -> list[dict]:
+        """
+        Poll a Genie space for conversations created after a timestamp
+
+        Args:
+            space_id: The Genie space ID to poll
+            after_timestamp: Unix timestamp - only return conversations created after this time
+
+        Returns:
+            List of chart references with Genie coordinates
+        """
+        try:
+            logger.info(f"[GENIE POLL] Polling space {space_id[:12]}... for conversations after {after_timestamp}")
+
+            # List all conversations in the space
+            conversations = self.client.genie.list_conversations(space_id=space_id)
+
+            chart_refs = []
+
+            for conv in conversations:
+                # Get conversation creation time (assuming conv has created_timestamp or similar)
+                # If the SDK doesn't provide timestamp, we'll check all recent conversations
+                conv_time = getattr(conv, 'created_timestamp', None)
+
+                # For now, check the most recent conversations (up to 5)
+                # Later we can filter by timestamp if available
+                logger.debug(f"[GENIE POLL] Checking conversation {conv.id}")
+
+                # List messages in the conversation
+                messages = self.client.genie.list_messages(
+                    space_id=space_id,
+                    conversation_id=conv.id
+                )
+
+                # Look for COMPLETED messages with attachments
+                for message in messages:
+                    if message.status == "COMPLETED":
+                        try:
+                            # Get full message details
+                            msg_details = self.client.genie.get_message(
+                                space_id=space_id,
+                                conversation_id=conv.id,
+                                message_id=message.id
+                            )
+
+                            # Check for attachments
+                            if hasattr(msg_details, 'attachments') and msg_details.attachments:
+                                for attachment in msg_details.attachments:
+                                    attachment_id = getattr(attachment, 'id', None)
+
+                                    if attachment_id:
+                                        logger.info(f"[GENIE POLL] ✅ Found chart in conversation {conv.id}")
+                                        chart_refs.append({
+                                            "spaceId": space_id,
+                                            "conversationId": conv.id,
+                                            "messageId": message.id,
+                                            "attachmentId": attachment_id
+                                        })
+                                        # Only take the first attachment from first completed message
+                                        break
+
+                            if chart_refs:  # Found a chart in this conversation
+                                break
+
+                        except Exception as msg_err:
+                            logger.warning(f"[GENIE POLL] Error checking message {message.id}: {msg_err}")
+                            continue
+
+                # Limit to checking first 5 conversations to avoid performance issues
+                if len(chart_refs) >= 1:
+                    break
+
+            logger.info(f"[GENIE POLL] Found {len(chart_refs)} chart(s) in space {space_id[:12]}...")
+            return chart_refs
+
+        except Exception as e:
+            logger.error(f"[GENIE POLL] Failed to poll space {space_id}: {e}", exc_info=True)
+            return []
+
     async def stream_events(self, messages: List[ChatMessage]) -> AsyncIterator[dict]:
         """
         Stream normalized events from MAS endpoint
@@ -144,8 +232,10 @@ class MASStreamingClient:
         - {"type": "error", "message": "..."}
         """
         try:
-            # Accumulate full response text to parse for Genie coordinates at the end
-            full_response_text = ""
+            # Track analytics agents called and start timestamp for Genie polling
+            import time
+            request_start_time = time.time()
+            analytics_agents_called = []  # Track which analytics agents were called
 
             # Convert to MAS input format (expects 'input' array, not 'messages')
             input_messages = []
@@ -157,6 +247,7 @@ class MASStreamingClient:
 
             logger.info(f"[MAS] Streaming from endpoint: {self.endpoint_name}")
             logger.info(f"[MAS] Message count: {len(input_messages)}")
+            logger.info(f"[MAS] Request start time: {request_start_time}")
 
             # Use httpx to make streaming request directly
             import httpx
@@ -299,8 +390,11 @@ class MASStreamingClient:
                                         if item_type == "function_call":
                                             tool_name = item.get("name", "unknown")
                                             logger.info(f"[MAS] Tool completed: {tool_name}")
-                                            logger.info(f"[MAS] Item keys: {list(item.keys())}")
-                                            logger.info(f"[MAS] Full item structure (first 1000 chars): {json.dumps(item, indent=2)[:1000]}")
+
+                                            # Track if this is an analytics agent (for Genie polling later)
+                                            if tool_name in self.AGENT_SPACE_MAPPING:
+                                                analytics_agents_called.append(tool_name)
+                                                logger.info(f"[MAS] ✅ Analytics agent tracked for Genie polling: {tool_name}")
 
                                             # Emit tool.output to mark completion (stops spinner)
                                             yield {
@@ -315,136 +409,16 @@ class MASStreamingClient:
                                             logger.debug("[MAS] Skipping output_item content (already streamed)")
                                             pass
 
-                                    # MAS Function result
+                                    # MAS Function result (for debugging - not used for chart extraction)
                                     elif event_type == "response.function_call_result" or event_type == "response.tool_result":
-                                        logger.info(f"[MAS] === ENTERED function_call_result handler ===")
                                         result = event.get("result", {})
                                         tool_name = result.get("name", "agent")
                                         tool_output = result.get("output", "Complete")
 
-                                        logger.info(f"[MAS] Tool result: {tool_name}")
-                                        logger.info(f"[MAS] Tool output type: {type(tool_output)}")
-                                        logger.info(f"[MAS] Tool output preview: {str(tool_output)[:500]}")
+                                        logger.debug(f"[MAS] Tool result event: {tool_name}")
 
-                                        # Emit standard tool.output for UI badge
-                                        yield {
-                                            "type": "tool.output",
-                                            "name": tool_name,
-                                            "output": str(tool_output)
-                                        }
-
-                                        # Special handling for Genie/analytics queries - extract chart reference
-                                        # Match various tool names: execute_genie_query, agent-sales-analytics, etc.
-                                        logger.info(f"[MAS] Checking if tool is analytics-related: tool_name='{tool_name}'")
-                                        if any(keyword in tool_name.lower() for keyword in ["genie", "analytics", "sales", "query"]):
-                                            logger.info(f"[MAS] Detected analytics/query tool: {tool_name}")
-                                            logger.info(f"[MAS] Tool output structure: {json.dumps(tool_output, indent=2)[:1000]}")
-
-                                            if isinstance(tool_output, dict):
-                                                try:
-                                                    # MAS tool output format (varies by MAS implementation)
-                                                    # Check for Genie coordinates in the output
-                                                    genie_ref = None
-                                                    query_meta = None  # Optional query metadata (title, description, etc.)
-
-                                                    # Pattern 0: New structured format with genie.attachments[]
-                                                    # {"agent_name": "...", "genie": {"space_id": "...", "attachments": [{"attachment_id": "..."}]}}
-                                                    if "genie" in tool_output and isinstance(tool_output["genie"], dict):
-                                                        genie_obj = tool_output["genie"]
-                                                        if all(k in genie_obj for k in ["space_id", "conversation_id", "message_id"]):
-                                                            # Extract attachment_id from attachments array
-                                                            attachment_id = None
-                                                            if "attachments" in genie_obj and isinstance(genie_obj["attachments"], list) and len(genie_obj["attachments"]) > 0:
-                                                                attachment_id = genie_obj["attachments"][0].get("attachment_id")
-
-                                                            # Also check for direct attachment_id field (backward compatibility)
-                                                            if not attachment_id:
-                                                                attachment_id = genie_obj.get("attachment_id")
-
-                                                            if attachment_id:
-                                                                logger.info(f"[MAS] ✅ Pattern 0: Found genie object with attachments! attachment={attachment_id[:12]}...")
-                                                                genie_ref = {
-                                                                    "spaceId": genie_obj["space_id"],
-                                                                    "conversationId": genie_obj["conversation_id"],
-                                                                    "messageId": genie_obj["message_id"],
-                                                                    "attachmentId": attachment_id
-                                                                }
-
-                                                                # Extract query metadata for display
-                                                                query_meta = None
-                                                                if "attachments" in genie_obj and genie_obj["attachments"][0].get("query"):
-                                                                    query = genie_obj["attachments"][0]["query"]
-                                                                    query_meta = {
-                                                                        "title": query.get("title", "Query Result"),
-                                                                        "description": query.get("description"),
-                                                                        "query_text": query.get("query_text")
-                                                                    }
-                                                            else:
-                                                                logger.warning(f"[MAS] Pattern 0: genie object found but no attachment_id")
-
-                                                    # Pattern 1: Direct coordinates (backward compatibility)
-                                                    if all(k in tool_output for k in ["space_id", "conversation_id", "message_id", "attachment_id"]):
-                                                        genie_ref = {
-                                                            "spaceId": tool_output["space_id"],
-                                                            "conversationId": tool_output["conversation_id"],
-                                                            "messageId": tool_output["message_id"],
-                                                            "attachmentId": tool_output["attachment_id"]
-                                                        }
-
-                                                    # Pattern 2: Nested in 'result' or 'data'
-                                                    elif "result" in tool_output and isinstance(tool_output["result"], dict):
-                                                        res = tool_output["result"]
-                                                        if all(k in res for k in ["space_id", "conversation_id", "message_id", "attachment_id"]):
-                                                            genie_ref = {
-                                                                "spaceId": res["space_id"],
-                                                                "conversationId": res["conversation_id"],
-                                                                "messageId": res["message_id"],
-                                                                "attachmentId": res["attachment_id"]
-                                                            }
-                                                        # Pattern 2b: Conversation ID in nested result, query Genie
-                                                        elif "conversation_id" in res:
-                                                            conversation_id = res["conversation_id"]
-                                                            space_id = res.get("space_id")
-                                                            logger.info(f"[MAS] Found conversation_id in nested result, querying Genie Space...")
-                                                            genie_ref = self.get_genie_coordinates_from_conversation(
-                                                                conversation_id=conversation_id,
-                                                                space_id=space_id
-                                                            )
-
-                                                    # Pattern 3: Query Genie Space using conversation_id
-                                                    # If we have conversation_id but not full coordinates, query Genie API
-                                                    elif "conversation_id" in tool_output:
-                                                        conversation_id = tool_output["conversation_id"]
-                                                        space_id = tool_output.get("space_id")  # Optional
-
-                                                        logger.info(f"[MAS] Found conversation_id, querying Genie Space...")
-                                                        genie_ref = self.get_genie_coordinates_from_conversation(
-                                                            conversation_id=conversation_id,
-                                                            space_id=space_id
-                                                        )
-
-                                                    if genie_ref:
-                                                        logger.info(f"[MAS] ✅ Found Genie coordinates! Emitting chart reference: {genie_ref}")
-
-                                                        # Use query metadata if available, otherwise use defaults
-                                                        chart_title = query_meta.get("title", "Query Result") if query_meta else "Query Result"
-                                                        chart_subtitle = query_meta.get("description", "Click to view chart") if query_meta else "Click to view chart"
-
-                                                        yield {
-                                                            "type": "chart.reference",
-                                                            "genie": genie_ref,
-                                                            "title": chart_title,
-                                                            "subtitle": chart_subtitle,
-                                                            "query_text": query_meta.get("query_text") if query_meta else None
-                                                        }
-                                                    else:
-                                                        logger.warning(f"[MAS] ❌ No Genie coordinates found in tool output. Tool: {tool_name}")
-                                                        logger.debug(f"[MAS] Full output keys: {list(tool_output.keys())}")
-
-                                                except Exception as e:
-                                                    logger.error(f"[MAS] Failed to extract Genie reference: {e}", exc_info=True)
-                                            else:
-                                                logger.warning(f"[MAS] Tool output is not dict, type: {type(tool_output).__name__}, value length: {len(str(tool_output))}")
+                                        # Note: We don't extract chart coordinates here anymore
+                                        # Chart extraction happens by polling Genie spaces after streaming completes
 
                                     # OpenAI-compatible format (fallback for other endpoints)
                                     elif "choices" in event and event["choices"]:
@@ -492,82 +466,38 @@ class MASStreamingClient:
                                     logger.error(f"[MAS] Failed to parse event: {parse_error}", exc_info=True)
                                     continue
 
-            # After streaming completes, parse the full response text for Genie coordinates
-            logger.info(f"[MAS] Streaming complete. Full response length: {len(full_response_text)}")
-            logger.info(f"[MAS] Parsing response for Genie coordinates...")
+            # After streaming completes, poll Genie spaces for charts created by analytics agents
+            logger.info(f"[MAS] Streaming complete.")
+            logger.info(f"[MAS] Analytics agents called: {analytics_agents_called}")
 
-            # Try to extract JSON structure from the response
-            # MAS embeds JSON like: { "agent_name": "...", "genie": {...}, ... }
-            try:
-                # Look for JSON block in the response text
-                json_start = full_response_text.find("{")
-                json_end = full_response_text.rfind("}") + 1
+            if analytics_agents_called:
+                # Poll each space that was used
+                for agent_name in analytics_agents_called:
+                    space_id = self.AGENT_SPACE_MAPPING.get(agent_name)
+                    if space_id:
+                        logger.info(f"[MAS] Polling Genie space for {agent_name}...")
 
-                if json_start >= 0 and json_end > json_start:
-                    json_text = full_response_text[json_start:json_end]
-                    logger.debug(f"[MAS] Found JSON block: {json_text[:500]}")
+                        try:
+                            # Poll the space for recent charts
+                            chart_refs = self.poll_genie_space_for_recent_charts(
+                                space_id=space_id,
+                                after_timestamp=request_start_time
+                            )
 
-                    try:
-                        response_data = json.loads(json_text)
-                        logger.info(f"[MAS] Parsed JSON successfully. Keys: {list(response_data.keys())}")
+                            # Emit chart.reference event for each chart found
+                            for genie_ref in chart_refs:
+                                logger.info(f"[MAS] ✅ Emitting chart.reference for conversation {genie_ref['conversationId'][:12]}...")
+                                yield {
+                                    "type": "chart.reference",
+                                    "genie": genie_ref,
+                                    "title": "Query Result",
+                                    "subtitle": "Click to view chart"
+                                }
 
-                        # Check for genie coordinates in the response
-                        if "genie" in response_data and response_data["genie"] is not None:
-                            genie_obj = response_data["genie"]
-                            logger.info(f"[MAS] Found genie object: {genie_obj}")
-
-                            # Extract coordinates from genie object
-                            if isinstance(genie_obj, dict) and all(k in genie_obj for k in ["space_id", "conversation_id", "message_id"]):
-                                # Extract attachment_id from attachments array or direct field
-                                attachment_id = None
-                                if "attachments" in genie_obj and isinstance(genie_obj["attachments"], list) and len(genie_obj["attachments"]) > 0:
-                                    attachment_id = genie_obj["attachments"][0].get("attachment_id")
-                                if not attachment_id:
-                                    attachment_id = genie_obj.get("attachment_id")
-
-                                if attachment_id:
-                                    logger.info(f"[MAS] ✅ Extracted Genie coordinates from response!")
-                                    genie_ref = {
-                                        "spaceId": genie_obj["space_id"],
-                                        "conversationId": genie_obj["conversation_id"],
-                                        "messageId": genie_obj["message_id"],
-                                        "attachmentId": attachment_id
-                                    }
-
-                                    # Extract query metadata if available
-                                    query_meta = None
-                                    if "attachments" in genie_obj and genie_obj["attachments"][0].get("query"):
-                                        query = genie_obj["attachments"][0]["query"]
-                                        query_meta = {
-                                            "title": query.get("title", "Query Result"),
-                                            "description": query.get("description"),
-                                            "query_text": query.get("query_text")
-                                        }
-
-                                    # Emit chart.reference event
-                                    chart_title = query_meta.get("title", "Query Result") if query_meta else "Query Result"
-                                    chart_subtitle = query_meta.get("description", "Click to view chart") if query_meta else "Click to view chart"
-
-                                    yield {
-                                        "type": "chart.reference",
-                                        "genie": genie_ref,
-                                        "title": chart_title,
-                                        "subtitle": chart_subtitle,
-                                        "query_text": query_meta.get("query_text") if query_meta else None
-                                    }
-                                    logger.info(f"[MAS] ✅ Emitted chart.reference event")
-                                else:
-                                    logger.warning(f"[MAS] Genie object found but no attachment_id")
-                        else:
-                            logger.info(f"[MAS] No genie coordinates in response (genie: {response_data.get('genie')})")
-
-                    except json.JSONDecodeError as json_err:
-                        logger.warning(f"[MAS] Could not parse JSON from response: {json_err}")
-                else:
-                    logger.info(f"[MAS] No JSON block found in response")
-
-            except Exception as parse_err:
-                logger.error(f"[MAS] Failed to parse response for Genie coordinates: {parse_err}", exc_info=True)
+                        except Exception as poll_err:
+                            logger.error(f"[MAS] Failed to poll space for {agent_name}: {poll_err}", exc_info=True)
+            else:
+                logger.info(f"[MAS] No analytics agents were called - no Genie polling needed")
 
         except Exception as e:
             logger.error(f"[MAS] Streaming error: {e}", exc_info=True)
