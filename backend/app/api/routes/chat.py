@@ -332,8 +332,44 @@ class MASStreamingClient:
                                                     # MAS tool output format (varies by MAS implementation)
                                                     # Check for Genie coordinates in the output
                                                     genie_ref = None
+                                                    query_meta = None  # Optional query metadata (title, description, etc.)
 
-                                                    # Pattern 1: Direct coordinates
+                                                    # Pattern 0: New structured format with genie.attachments[]
+                                                    # {"agent_name": "...", "genie": {"space_id": "...", "attachments": [{"attachment_id": "..."}]}}
+                                                    if "genie" in tool_output and isinstance(tool_output["genie"], dict):
+                                                        genie_obj = tool_output["genie"]
+                                                        if all(k in genie_obj for k in ["space_id", "conversation_id", "message_id"]):
+                                                            # Extract attachment_id from attachments array
+                                                            attachment_id = None
+                                                            if "attachments" in genie_obj and isinstance(genie_obj["attachments"], list) and len(genie_obj["attachments"]) > 0:
+                                                                attachment_id = genie_obj["attachments"][0].get("attachment_id")
+
+                                                            # Also check for direct attachment_id field (backward compatibility)
+                                                            if not attachment_id:
+                                                                attachment_id = genie_obj.get("attachment_id")
+
+                                                            if attachment_id:
+                                                                logger.info(f"[MAS] ✅ Pattern 0: Found genie object with attachments! attachment={attachment_id[:12]}...")
+                                                                genie_ref = {
+                                                                    "spaceId": genie_obj["space_id"],
+                                                                    "conversationId": genie_obj["conversation_id"],
+                                                                    "messageId": genie_obj["message_id"],
+                                                                    "attachmentId": attachment_id
+                                                                }
+
+                                                                # Extract query metadata for display
+                                                                query_meta = None
+                                                                if "attachments" in genie_obj and genie_obj["attachments"][0].get("query"):
+                                                                    query = genie_obj["attachments"][0]["query"]
+                                                                    query_meta = {
+                                                                        "title": query.get("title", "Query Result"),
+                                                                        "description": query.get("description"),
+                                                                        "query_text": query.get("query_text")
+                                                                    }
+                                                            else:
+                                                                logger.warning(f"[MAS] Pattern 0: genie object found but no attachment_id")
+
+                                                    # Pattern 1: Direct coordinates (backward compatibility)
                                                     if all(k in tool_output for k in ["space_id", "conversation_id", "message_id", "attachment_id"]):
                                                         genie_ref = {
                                                             "spaceId": tool_output["space_id"],
@@ -376,11 +412,17 @@ class MASStreamingClient:
 
                                                     if genie_ref:
                                                         logger.info(f"[MAS] ✅ Found Genie coordinates! Emitting chart reference: {genie_ref}")
+
+                                                        # Use query metadata if available, otherwise use defaults
+                                                        chart_title = query_meta.get("title", "Query Result") if query_meta else "Query Result"
+                                                        chart_subtitle = query_meta.get("description", "Click to view chart") if query_meta else "Click to view chart"
+
                                                         yield {
                                                             "type": "chart.reference",
                                                             "genie": genie_ref,
-                                                            "title": "Query Result",
-                                                            "subtitle": "Click to view chart"
+                                                            "title": chart_title,
+                                                            "subtitle": chart_subtitle,
+                                                            "query_text": query_meta.get("query_text") if query_meta else None
                                                         }
                                                     else:
                                                         logger.warning(f"[MAS] ❌ No Genie coordinates found in tool output. Tool: {tool_name}")
