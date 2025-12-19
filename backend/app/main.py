@@ -201,18 +201,21 @@ def generate_schema_manifest() -> List[SchemaAssets]:
         except Exception as e:
             logger.warning(f"Failed to list tables in {catalog}.{schema}: {e}")
 
-        # Get volumes
+        # Get volumes - use SHOW VOLUMES (canonical UC approach)
         try:
-            volumes_query = f"""
-            SELECT volume_name as name,
-                   volume_catalog || '.' || volume_schema || '.' || volume_name as full_name,
-                   volume_type, storage_location, comment
-            FROM system.information_schema.volumes
-            WHERE volume_catalog = '{catalog}' AND volume_schema = '{schema}'
-            ORDER BY volume_name
-            """
+            volumes_query = f"SHOW VOLUMES IN {catalog}.{schema}"
             volume_results = databricks_repo.execute_query(volumes_query)
-            volumes = [VolumeInfo(**row) for row in volume_results]
+
+            # SHOW VOLUMES returns: catalog_name, schema_name, volume_name, volume_type,
+            # storage_location, comment, owner, created_at, created_by, updated_at, updated_by
+            for row in volume_results:
+                volumes.append(VolumeInfo(
+                    name=row.get("volume_name"),
+                    full_name=f"{row.get('catalog_name')}.{row.get('schema_name')}.{row.get('volume_name')}",
+                    volume_type=row.get("volume_type"),
+                    storage_location=row.get("storage_location"),
+                    comment=row.get("comment")
+                ))
             logger.info(f"Found {len(volumes)} volumes in {catalog}.{schema}")
         except Exception as e:
             logger.warning(f"Failed to list volumes in {catalog}.{schema}: {e}")
@@ -390,17 +393,21 @@ if os.path.exists(frontend_dist):
         Serve React app for all non-API routes
 
         This enables client-side routing in the React app.
-        More specific routes (like /api/* and /health) will match first.
-
-        Note: /chat is handled by Chainlit mounting in main.py, so this won't
-        be called for /chat/* paths when properly mounted.
+        IMPORTANT: Must explicitly exclude API routes to prevent shadowing.
         """
-        # Don't serve React app for /chat paths - let them 404
-        # (Chainlit mounting in main.py should handle these)
-        if full_path.startswith("chat"):
-            from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail="Chat endpoint should be handled by Chainlit mounting")
+        # Exclude API routes - let FastAPI handle 404s for unknown API paths
+        if full_path.startswith("api/") or full_path.startswith("api"):
+            raise HTTPException(status_code=404, detail="API endpoint not found")
 
+        # Exclude static assets (already mounted separately)
+        if full_path.startswith("assets/"):
+            raise HTTPException(status_code=404, detail="Asset not found")
+
+        # Exclude health/debug endpoints
+        if full_path in ["health", "docs", "redoc", "openapi.json"]:
+            raise HTTPException(status_code=404)
+
+        # Serve React app for all other paths (client-side routing)
         index_path = os.path.join(frontend_dist, "index.html")
         return FileResponse(index_path)
 
