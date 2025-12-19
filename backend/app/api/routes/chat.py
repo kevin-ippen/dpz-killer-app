@@ -91,32 +91,38 @@ class MASStreamingClient:
                     logger.debug(f"[GENIE] Message {message.id}: status={message.status}")
 
                     # Look for completed messages with attachments
-                    if message.status in ["COMPLETED", "EXECUTING_QUERY"]:
-                        # Get message query result to find attachment
+                    if message.status == "COMPLETED":
+                        # Get full message details to access attachments array
                         try:
-                            result = self.client.genie.get_message_query_result(
+                            msg_details = self.client.genie.get_message(
                                 space_id=space_id,
                                 conversation_id=conversation_id,
                                 message_id=message.id
                             )
 
-                            # Extract attachment_id from result
-                            # The attachment_id is typically in the statement response
-                            if hasattr(result, 'statement_response') and result.statement_response:
-                                stmt_resp = result.statement_response
-                                # Use statement_id as attachment_id
-                                attachment_id = getattr(stmt_resp, 'statement_id', None)
+                            # Extract attachment_id from attachments array
+                            # Per Genie API: attachments populated when status is COMPLETED
+                            if hasattr(msg_details, 'attachments') and msg_details.attachments:
+                                attachments = msg_details.attachments
+                                logger.debug(f"[GENIE] Found {len(attachments)} attachments in message {message.id}")
 
-                                if attachment_id:
-                                    logger.info(f"[GENIE] ✅ Found coordinates! message={message.id}, attachment={attachment_id}")
-                                    return {
-                                        "spaceId": space_id,
-                                        "conversationId": conversation_id,
-                                        "messageId": message.id,
-                                        "attachmentId": attachment_id
-                                    }
+                                # Use the first attachment (typically the query result)
+                                for attachment in attachments:
+                                    attachment_id = getattr(attachment, 'id', None)
+
+                                    if attachment_id:
+                                        logger.info(f"[GENIE] ✅ Found coordinates! message={message.id}, attachment={attachment_id}")
+                                        return {
+                                            "spaceId": space_id,
+                                            "conversationId": conversation_id,
+                                            "messageId": message.id,
+                                            "attachmentId": attachment_id
+                                        }
+                            else:
+                                logger.debug(f"[GENIE] Message {message.id} has no attachments array")
+
                         except Exception as msg_err:
-                            logger.debug(f"[GENIE] Could not get query result for message {message.id}: {msg_err}")
+                            logger.warning(f"[GENIE] Could not get message details for {message.id}: {msg_err}")
                             continue
 
             logger.warning(f"[GENIE] Could not find Genie coordinates for conversation {conversation_id}")
