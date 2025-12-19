@@ -1,14 +1,66 @@
 /**
- * Parse message content into blocks (text, tables, etc.)
+ * Parse message content into blocks (text, tables, citations, etc.)
  *
- * Extracts markdown tables and other structured content from text
+ * Extracts markdown tables, PDF citations, and other structured content from text
  * and creates appropriate block objects.
  */
 
-import { ChatBlock, TableBlock } from "@/types/chat";
+import { ChatBlock, TableBlock, CitationBlock } from "@/types/chat";
 
 interface ParsedContent {
   blocks: ChatBlock[];
+  citations: CitationBlock[];
+}
+
+/**
+ * Extract PDF citations from markdown links
+ * Format: [Document Name, p. 42](https://…/volumes/hr/document.pdf?page=42)
+ */
+function extractCitations(content: string, messageId: string): CitationBlock[] {
+  const citations: CitationBlock[] = [];
+
+  // Regex to match markdown links to PDFs
+  // Matches: [link text](url)
+  const linkRegex = /\[([^\]]+)\]\(([^)]+\.pdf[^)]*)\)/gi;
+
+  let match;
+  let citationIndex = 1;
+
+  while ((match = linkRegex.exec(content)) !== null) {
+    const linkText = match[1]; // e.g., "Employee Handbook, p. 42"
+    const url = match[2]; // e.g., "https://.../ volumes/hr/employee_handbook.pdf?page=42"
+
+    // Extract page number from link text or URL
+    let page: number | undefined;
+
+    // Try to extract from link text (e.g., "p. 42" or "page 42")
+    const pageMatch = linkText.match(/p\.?\s*(\d+)|page\s+(\d+)/i);
+    if (pageMatch) {
+      page = parseInt(pageMatch[1] || pageMatch[2]);
+    }
+
+    // Also check URL query parameter
+    const urlPageMatch = url.match(/[?&]page=(\d+)/i);
+    if (urlPageMatch && !page) {
+      page = parseInt(urlPageMatch[1]);
+    }
+
+    // Extract document title (remove page reference)
+    const title = linkText.replace(/,?\s*p\.?\s*\d+|,?\s*page\s+\d+/i, '').trim();
+
+    citations.push({
+      id: `${messageId}-citation-${citationIndex}`,
+      type: "citation",
+      title: title || "Document",
+      url: url,
+      page: page,
+      index: citationIndex,
+    });
+
+    citationIndex++;
+  }
+
+  return citations;
 }
 
 /**
@@ -16,14 +68,18 @@ interface ParsedContent {
  *
  * Detects and extracts:
  * - Markdown tables (lines with | separators)
+ * - PDF citations (markdown links to .pdf files)
  * - Remaining text content
  */
 export function parseMessageBlocks(content: string, messageId: string): ParsedContent {
   const blocks: ChatBlock[] = [];
 
   if (!content.trim()) {
-    return { blocks };
+    return { blocks, citations: [] };
   }
+
+  // Extract citations first
+  const citations = extractCitations(content, messageId);
 
   const lines = content.split("\n");
   let currentTextLines: string[] = [];
@@ -98,7 +154,7 @@ export function parseMessageBlocks(content: string, messageId: string): ParsedCo
     });
   }
 
-  return { blocks };
+  return { blocks, citations };
 }
 
 /**

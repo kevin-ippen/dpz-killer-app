@@ -3,6 +3,7 @@ import { ChatMessage, ChatBlock, ActiveBlockRef } from "@/types/chat";
 import { FullChartView } from "./FullChartView";
 import { FullTableView } from "./FullTableView";
 import { FullImageView } from "./FullImageView";
+import { FullPDFView } from "./FullPDFView";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface ResultCanvasProps {
@@ -19,7 +20,15 @@ export function ResultCanvas({
   const block = React.useMemo(() => {
     if (!activeBlock) return null;
     const msg = messages.find((m) => m.id === activeBlock.messageId);
-    return msg?.blocks.find((b) => b.id === activeBlock.blockId) ?? null;
+    if (!msg) return null;
+
+    // Check blocks first
+    const foundBlock = msg.blocks.find((b) => b.id === activeBlock.blockId);
+    if (foundBlock) return foundBlock;
+
+    // Check citations
+    const foundCitation = msg.citations?.find((c) => c.id === activeBlock.blockId);
+    return foundCitation ?? null;
   }, [messages, activeBlock]);
 
   const blockTitle = (block: ChatBlock): string => {
@@ -30,6 +39,8 @@ export function ResultCanvas({
         return block.meta?.title || "Table";
       case "image":
         return block.alt || "Image";
+      case "citation":
+        return block.title || "Document";
       case "text":
         return "Text";
       default:
@@ -84,13 +95,15 @@ export function ResultCanvas({
             className="h-full w-full flex items-center justify-center text-sm"
             style={{ color: "var(--color-text-muted)" }}
           >
-            Click a chart, table, or image in the chat to view it here.
+            Click a chart, table, citation, or image in the chat to view it here.
           </div>
         )}
 
         {block && block.type === "chart" && <FullChartView block={block} />}
 
         {block && block.type === "table" && <FullTableView block={block} />}
+
+        {block && block.type === "citation" && <FullPDFView block={block} />}
 
         {block && block.type === "image" && <FullImageView block={block} />}
 

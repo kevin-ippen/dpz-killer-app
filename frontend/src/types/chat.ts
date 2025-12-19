@@ -61,7 +61,17 @@ export interface ImageBlock {
   height?: number;
 }
 
-export type ChatBlock = TextBlock | ChartBlock | TableBlock | ImageBlock;
+export interface CitationBlock {
+  id: string;
+  type: "citation";
+  title: string; // Document name (e.g., "Employee Handbook")
+  url: string; // PDF URL (may include ?page=X)
+  page?: number; // Extracted page number
+  snippet?: string; // Text snippet from the citation
+  index?: number; // Footnote number (e.g., [1], [2])
+}
+
+export type ChatBlock = TextBlock | ChartBlock | TableBlock | ImageBlock | CitationBlock;
 
 // ============================================================================
 // Tool Call Types
@@ -83,6 +93,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string; // Deprecated: for backward compatibility, use blocks instead
   blocks: ChatBlock[];
+  citations?: CitationBlock[]; // PDF citations extracted from markdown links
   toolCalls?: ToolCall[];
   timestamp: number;
 }

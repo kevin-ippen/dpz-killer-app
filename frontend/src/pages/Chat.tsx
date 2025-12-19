@@ -13,6 +13,7 @@ import { Send, Loader2, Sparkles, Database, CheckCircle2, AlertCircle } from "lu
 import { ChatMessage, ActiveBlockRef, TextBlock } from "@/types/chat";
 import { ResultCanvas } from "@/components/chat/ResultCanvas";
 import { ChartPreview, TablePreview, ImagePreview } from "@/components/chat/BlockPreviews";
+import { CitationPreview } from "@/components/chat/CitationPreview";
 import { MarkdownRenderer } from "@/components/chat/MarkdownRenderer";
 import { parseMessageBlocks } from "@/utils/parseMessageBlocks";
 
@@ -328,17 +329,18 @@ I can help you analyze your business data across:
       setIsStreaming(false);
       abortControllerRef.current = null;
 
-      // Parse final content into blocks (extract tables, etc.)
+      // Parse final content into blocks (extract tables, citations, etc.)
       setMessages((prev) =>
         prev.map((msg) => {
           if (msg.id !== assistantMessageId) return msg;
 
-          // Parse content into structured blocks
-          const { blocks } = parseMessageBlocks(msg.content, assistantMessageId);
+          // Parse content into structured blocks and citations
+          const { blocks, citations } = parseMessageBlocks(msg.content, assistantMessageId);
 
           return {
             ...msg,
             blocks: blocks.length > 0 ? blocks : msg.blocks,
+            citations: citations.length > 0 ? citations : msg.citations,
           };
         })
       );
@@ -538,6 +540,32 @@ I can help you analyze your business data across:
 
                     return null;
                   })}
+
+                  {/* Citations (footnotes) */}
+                  {message.citations && message.citations.length > 0 && (
+                    <div
+                      className="mt-3 pt-3 space-y-1"
+                      style={{ borderTop: "1px solid rgba(30, 41, 59, 0.8)" }}
+                    >
+                      <div
+                        className="text-[10px] uppercase tracking-wider font-semibold mb-2"
+                        style={{ color: "var(--color-text-secondary)" }}
+                      >
+                        Sources
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {message.citations.map((citation) => (
+                          <CitationPreview
+                            key={citation.id}
+                            citation={citation}
+                            onClick={() =>
+                              setActiveBlock({ messageId: message.id, blockId: citation.id })
+                            }
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Timestamp */}
                   <div
