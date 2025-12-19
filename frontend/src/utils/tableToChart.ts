@@ -32,6 +32,27 @@ export function detectChartType(block: TableBlock): ChartType {
 }
 
 /**
+ * Parse a string value to number, handling various formats
+ */
+function parseNumericValue(value: string): number {
+  if (!value || typeof value !== 'string') return 0;
+
+  // Remove common formatting characters
+  const cleaned = value
+    .replace(/[$£€¥]/g, '')      // Currency symbols
+    .replace(/,/g, '')            // Thousands separators
+    .replace(/\s+/g, '')          // Whitespace
+    .replace(/%$/g, '')           // Percentage sign at end
+    .trim();
+
+  // Handle empty or non-numeric strings
+  if (!cleaned || cleaned === '-' || cleaned === 'N/A') return 0;
+
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+/**
  * Convert table data to Recharts-compatible format
  */
 export function tableToChartData(block: TableBlock, chartType: ChartType = "bar") {
@@ -45,8 +66,8 @@ export function tableToChartData(block: TableBlock, chartType: ChartType = "bar"
   if (chartType === "pie") {
     const data = rows.map((row) => ({
       name: row[0]?.toString() || "",
-      value: parseFloat(row[1]?.toString() || "0") || 0,
-    }));
+      value: parseNumericValue(row[1]?.toString() || "0"),
+    })).filter(d => d.value > 0); // Filter out zero values
     return { data, dataKeys: ["value"] };
   }
 
@@ -59,9 +80,7 @@ export function tableToChartData(block: TableBlock, chartType: ChartType = "bar"
     // Add each numeric column as a data series
     for (let i = 1; i < columns.length; i++) {
       const value = row[i]?.toString() || "";
-      // Try to parse as number, keep as 0 if not numeric
-      const numValue = parseFloat(value.replace(/[$,]/g, "")) || 0;
-      entry[columns[i]] = numValue;
+      entry[columns[i]] = parseNumericValue(value);
     }
 
     return entry;
