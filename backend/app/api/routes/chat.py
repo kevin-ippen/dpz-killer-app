@@ -271,7 +271,8 @@ class MASStreamingClient:
                                     event = json.loads(data)
                                     event_type = event.get("type", "")
 
-                                    logger.debug(f"[MAS] Event type: {event_type}")
+                                    # Log ALL event types for debugging
+                                    logger.info(f"[MAS] >>> Received event type: {event_type}")
 
                                     # MAS Response format: response.output_text.delta
                                     if event_type == "response.output_text.delta":
@@ -292,6 +293,9 @@ class MASStreamingClient:
                                         if item_type == "function_call":
                                             tool_name = item.get("name", "unknown")
                                             logger.info(f"[MAS] Tool completed: {tool_name}")
+                                            logger.info(f"[MAS] Item keys: {list(item.keys())}")
+                                            logger.info(f"[MAS] Full item structure (first 1000 chars): {json.dumps(item, indent=2)[:1000]}")
+
                                             # Emit tool.output to mark completion (stops spinner)
                                             yield {
                                                 "type": "tool.output",
@@ -307,12 +311,14 @@ class MASStreamingClient:
 
                                     # MAS Function result
                                     elif event_type == "response.function_call_result" or event_type == "response.tool_result":
+                                        logger.info(f"[MAS] === ENTERED function_call_result handler ===")
                                         result = event.get("result", {})
                                         tool_name = result.get("name", "agent")
                                         tool_output = result.get("output", "Complete")
 
                                         logger.info(f"[MAS] Tool result: {tool_name}")
-                                        logger.debug(f"[MAS] Tool output type: {type(tool_output)}")
+                                        logger.info(f"[MAS] Tool output type: {type(tool_output)}")
+                                        logger.info(f"[MAS] Tool output preview: {str(tool_output)[:500]}")
 
                                         # Emit standard tool.output for UI badge
                                         yield {
