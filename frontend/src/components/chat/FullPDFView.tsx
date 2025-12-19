@@ -14,8 +14,8 @@ import "react-pdf/dist/Page/TextLayer.css";
 
 // Set up PDF.js worker - use local file instead of CDN
 // Databricks Apps may block external CDN requests
-// Worker file is copied to public directory during build
-pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+// Use relative path from current origin to avoid module resolution issues
+pdfjs.GlobalWorkerOptions.workerSrc = `${window.location.origin}/pdf.worker.min.mjs`;
 
 interface FullPDFViewProps {
   block: CitationBlock;
