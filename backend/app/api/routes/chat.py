@@ -140,9 +140,13 @@ class MASStreamingClient:
         - {"type": "text.delta", "delta": "..."}
         - {"type": "tool.call", "name": "...", "args": {...}}
         - {"type": "tool.output", "name": "...", "output": "..."}
+        - {"type": "chart.reference", "genie": {...}, ...} (after streaming completes)
         - {"type": "error", "message": "..."}
         """
         try:
+            # Accumulate full response text to parse for Genie coordinates at the end
+            full_response_text = ""
+
             # Convert to MAS input format (expects 'input' array, not 'messages')
             input_messages = []
             for msg in messages:
@@ -278,6 +282,8 @@ class MASStreamingClient:
                                     if event_type == "response.output_text.delta":
                                         delta = event.get("delta", "")
                                         if delta:
+                                            # Accumulate text for post-processing
+                                            full_response_text += delta
                                             logger.debug(f"[MAS] Text delta: {delta[:50]}")
                                             yield {
                                                 "type": "text.delta",
@@ -485,6 +491,83 @@ class MASStreamingClient:
                                 except Exception as parse_error:
                                     logger.error(f"[MAS] Failed to parse event: {parse_error}", exc_info=True)
                                     continue
+
+            # After streaming completes, parse the full response text for Genie coordinates
+            logger.info(f"[MAS] Streaming complete. Full response length: {len(full_response_text)}")
+            logger.info(f"[MAS] Parsing response for Genie coordinates...")
+
+            # Try to extract JSON structure from the response
+            # MAS embeds JSON like: { "agent_name": "...", "genie": {...}, ... }
+            try:
+                # Look for JSON block in the response text
+                json_start = full_response_text.find("{")
+                json_end = full_response_text.rfind("}") + 1
+
+                if json_start >= 0 and json_end > json_start:
+                    json_text = full_response_text[json_start:json_end]
+                    logger.debug(f"[MAS] Found JSON block: {json_text[:500]}")
+
+                    try:
+                        response_data = json.loads(json_text)
+                        logger.info(f"[MAS] Parsed JSON successfully. Keys: {list(response_data.keys())}")
+
+                        # Check for genie coordinates in the response
+                        if "genie" in response_data and response_data["genie"] is not None:
+                            genie_obj = response_data["genie"]
+                            logger.info(f"[MAS] Found genie object: {genie_obj}")
+
+                            # Extract coordinates from genie object
+                            if isinstance(genie_obj, dict) and all(k in genie_obj for k in ["space_id", "conversation_id", "message_id"]):
+                                # Extract attachment_id from attachments array or direct field
+                                attachment_id = None
+                                if "attachments" in genie_obj and isinstance(genie_obj["attachments"], list) and len(genie_obj["attachments"]) > 0:
+                                    attachment_id = genie_obj["attachments"][0].get("attachment_id")
+                                if not attachment_id:
+                                    attachment_id = genie_obj.get("attachment_id")
+
+                                if attachment_id:
+                                    logger.info(f"[MAS] ✅ Extracted Genie coordinates from response!")
+                                    genie_ref = {
+                                        "spaceId": genie_obj["space_id"],
+                                        "conversationId": genie_obj["conversation_id"],
+                                        "messageId": genie_obj["message_id"],
+                                        "attachmentId": attachment_id
+                                    }
+
+                                    # Extract query metadata if available
+                                    query_meta = None
+                                    if "attachments" in genie_obj and genie_obj["attachments"][0].get("query"):
+                                        query = genie_obj["attachments"][0]["query"]
+                                        query_meta = {
+                                            "title": query.get("title", "Query Result"),
+                                            "description": query.get("description"),
+                                            "query_text": query.get("query_text")
+                                        }
+
+                                    # Emit chart.reference event
+                                    chart_title = query_meta.get("title", "Query Result") if query_meta else "Query Result"
+                                    chart_subtitle = query_meta.get("description", "Click to view chart") if query_meta else "Click to view chart"
+
+                                    yield {
+                                        "type": "chart.reference",
+                                        "genie": genie_ref,
+                                        "title": chart_title,
+                                        "subtitle": chart_subtitle,
+                                        "query_text": query_meta.get("query_text") if query_meta else None
+                                    }
+                                    logger.info(f"[MAS] ✅ Emitted chart.reference event")
+                                else:
+                                    logger.warning(f"[MAS] Genie object found but no attachment_id")
+                        else:
+                            logger.info(f"[MAS] No genie coordinates in response (genie: {response_data.get('genie')})")
+
+                    except json.JSONDecodeError as json_err:
+                        logger.warning(f"[MAS] Could not parse JSON from response: {json_err}")
+                else:
+                    logger.info(f"[MAS] No JSON block found in response")
+
+            except Exception as parse_err:
+                logger.error(f"[MAS] Failed to parse response for Genie coordinates: {parse_err}", exc_info=True)
 
         except Exception as e:
             logger.error(f"[MAS] Streaming error: {e}", exc_info=True)
