@@ -134,6 +134,125 @@ async def list_routes():
 
 
 # ============================================================================
+# TEMPORARY: Explore Endpoints (workaround until explore.py gets deployed)
+# ============================================================================
+
+from typing import List
+from pydantic import BaseModel
+from fastapi.responses import Response
+
+class TableInfo(BaseModel):
+    name: str
+    full_name: str
+    table_type: str | None = None
+    comment: str | None = None
+
+class VolumeInfo(BaseModel):
+    name: str
+    full_name: str
+    volume_type: str | None = None
+    storage_location: str | None = None
+    comment: str | None = None
+
+class SchemaAssets(BaseModel):
+    catalog: str
+    schema: str
+    tables: List[TableInfo]
+    volumes: List[VolumeInfo]
+
+
+@app.get(f"{settings.API_PREFIX}/explore/schemas", response_model=List[SchemaAssets])
+async def get_schemas_temp():
+    """TEMPORARY: Get schema assets using SQL (workaround)"""
+    try:
+        from app.repositories.databricks_repo import databricks_repo
+
+        schemas = [
+            ("main", "dominos_analytics"),
+            ("main", "dominos_realistic"),
+            ("main", "dominos_files"),
+        ]
+
+        results = []
+        for catalog, schema in schemas:
+            tables = []
+            volumes = []
+
+            # Get tables
+            try:
+                tables_query = f"""
+                SELECT table_name, table_catalog || '.' || table_schema || '.' || table_name as full_name,
+                       table_type, comment
+                FROM system.information_schema.tables
+                WHERE table_catalog = '{catalog}' AND table_schema = '{schema}'
+                ORDER BY table_name
+                """
+                table_results = databricks_repo.execute_query(tables_query)
+                tables = [TableInfo(**row) for row in table_results]
+                logger.info(f"Found {len(tables)} tables in {catalog}.{schema}")
+            except Exception as e:
+                logger.warning(f"Failed to list tables in {catalog}.{schema}: {e}")
+
+            # Get volumes
+            try:
+                volumes_query = f"""
+                SELECT volume_name as name,
+                       volume_catalog || '.' || volume_schema || '.' || volume_name as full_name,
+                       volume_type, storage_location, comment
+                FROM system.information_schema.volumes
+                WHERE volume_catalog = '{catalog}' AND volume_schema = '{schema}'
+                ORDER BY volume_name
+                """
+                volume_results = databricks_repo.execute_query(volumes_query)
+                volumes = [VolumeInfo(**row) for row in volume_results]
+                logger.info(f"Found {len(volumes)} volumes in {catalog}.{schema}")
+            except Exception as e:
+                logger.warning(f"Failed to list volumes in {catalog}.{schema}: {e}")
+
+            results.append(SchemaAssets(catalog=catalog, schema=schema, tables=tables, volumes=volumes))
+
+        return results
+    except Exception as e:
+        logger.error(f"Error fetching schemas: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(f"{settings.API_PREFIX}/explore/tables/{{catalog}}/{{schema}}/{{table}}/preview")
+async def preview_table_temp(catalog: str, schema: str, table: str, limit: int = 100):
+    """TEMPORARY: Preview table data (workaround)"""
+    try:
+        from app.repositories.databricks_repo import databricks_repo
+        full_name = f"{catalog}.{schema}.{table}"
+        query = f"SELECT * FROM {full_name} LIMIT {limit}"
+        results = databricks_repo.execute_query(query)
+        columns = list(results[0].keys()) if results else []
+        return {"table": full_name, "columns": columns, "rows": results, "row_count": len(results)}
+    except Exception as e:
+        logger.error(f"Error previewing table: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(f"{settings.API_PREFIX}/explore/files/proxy")
+async def proxy_file_temp(path: str):
+    """TEMPORARY: Proxy Unity Catalog files (workaround)"""
+    try:
+        from databricks.sdk import WorkspaceClient
+        client = WorkspaceClient()
+        logger.info(f"Proxying file: {path}")
+        file_content = client.files.download(path).contents.read()
+
+        content_type = "application/pdf" if path.lower().endswith('.pdf') else "application/octet-stream"
+        return Response(
+            content=file_content,
+            media_type=content_type,
+            headers={"Content-Disposition": "inline", "Cache-Control": "public, max-age=3600"}
+        )
+    except Exception as e:
+        logger.error(f"Error proxying file: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
 # Application Lifecycle Events
 # ============================================================================
 
