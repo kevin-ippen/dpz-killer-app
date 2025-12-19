@@ -63,6 +63,69 @@ class MASStreamingClient:
         self.client = WorkspaceClient()
         self.endpoint_name = os.getenv("MAS_ENDPOINT_NAME", "mas-3d3b5439-endpoint")
 
+    def get_genie_coordinates_from_conversation(self, conversation_id: str, space_id: str = None) -> dict:
+        """
+        Query Genie Space to get full coordinates from conversation_id
+
+        Args:
+            conversation_id: Genie conversation ID
+            space_id: Optional space ID (if known)
+
+        Returns:
+            Dict with spaceId, conversationId, messageId, attachmentId
+            Returns None if not found
+        """
+        try:
+            logger.info(f"[GENIE] Querying conversation: {conversation_id}, space: {space_id}")
+
+            # If we have space_id, use it directly
+            if space_id:
+                # Get conversation messages
+                messages = self.client.genie.list_messages(
+                    space_id=space_id,
+                    conversation_id=conversation_id
+                )
+
+                # Find the most recent message with query results
+                for message in reversed(list(messages)):
+                    logger.debug(f"[GENIE] Message {message.id}: status={message.status}")
+
+                    # Look for completed messages with attachments
+                    if message.status in ["COMPLETED", "EXECUTING_QUERY"]:
+                        # Get message query result to find attachment
+                        try:
+                            result = self.client.genie.get_message_query_result(
+                                space_id=space_id,
+                                conversation_id=conversation_id,
+                                message_id=message.id
+                            )
+
+                            # Extract attachment_id from result
+                            # The attachment_id is typically in the statement response
+                            if hasattr(result, 'statement_response') and result.statement_response:
+                                stmt_resp = result.statement_response
+                                # Use statement_id as attachment_id
+                                attachment_id = getattr(stmt_resp, 'statement_id', None)
+
+                                if attachment_id:
+                                    logger.info(f"[GENIE] ✅ Found coordinates! message={message.id}, attachment={attachment_id}")
+                                    return {
+                                        "spaceId": space_id,
+                                        "conversationId": conversation_id,
+                                        "messageId": message.id,
+                                        "attachmentId": attachment_id
+                                    }
+                        except Exception as msg_err:
+                            logger.debug(f"[GENIE] Could not get query result for message {message.id}: {msg_err}")
+                            continue
+
+            logger.warning(f"[GENIE] Could not find Genie coordinates for conversation {conversation_id}")
+            return None
+
+        except Exception as e:
+            logger.error(f"[GENIE] Failed to query Genie Space: {e}", exc_info=True)
+            return None
+
     async def stream_events(self, messages: List[ChatMessage]) -> AsyncIterator[dict]:
         """
         Stream normalized events from MAS endpoint
@@ -283,9 +346,27 @@ class MASStreamingClient:
                                                                 "messageId": res["message_id"],
                                                                 "attachmentId": res["attachment_id"]
                                                             }
+                                                        # Pattern 2b: Conversation ID in nested result, query Genie
+                                                        elif "conversation_id" in res:
+                                                            conversation_id = res["conversation_id"]
+                                                            space_id = res.get("space_id")
+                                                            logger.info(f"[MAS] Found conversation_id in nested result, querying Genie Space...")
+                                                            genie_ref = self.get_genie_coordinates_from_conversation(
+                                                                conversation_id=conversation_id,
+                                                                space_id=space_id
+                                                            )
 
-                                                    # Pattern 3: Look in tool arguments (from the function_call)
-                                                    # This requires storing args from output_item.added
+                                                    # Pattern 3: Query Genie Space using conversation_id
+                                                    # If we have conversation_id but not full coordinates, query Genie API
+                                                    elif "conversation_id" in tool_output:
+                                                        conversation_id = tool_output["conversation_id"]
+                                                        space_id = tool_output.get("space_id")  # Optional
+
+                                                        logger.info(f"[MAS] Found conversation_id, querying Genie Space...")
+                                                        genie_ref = self.get_genie_coordinates_from_conversation(
+                                                            conversation_id=conversation_id,
+                                                            space_id=space_id
+                                                        )
 
                                                     if genie_ref:
                                                         logger.info(f"[MAS] ✅ Found Genie coordinates! Emitting chart reference: {genie_ref}")
