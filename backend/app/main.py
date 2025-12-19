@@ -20,7 +20,7 @@ import logging
 import os
 
 from app.core.config import settings
-from app.api.routes import items, metrics, chat, genie
+from app.api.routes import items, metrics, chat, genie, explore
 from app.models.schemas import HealthResponse
 
 # Configure logging
@@ -56,6 +56,7 @@ app.include_router(items.router, prefix=settings.API_PREFIX)
 app.include_router(metrics.router, prefix=settings.API_PREFIX)
 app.include_router(chat.router, prefix=settings.API_PREFIX)
 app.include_router(genie.router, prefix=settings.API_PREFIX)
+app.include_router(explore.router, prefix=settings.API_PREFIX)
 
 
 # ============================================================================
