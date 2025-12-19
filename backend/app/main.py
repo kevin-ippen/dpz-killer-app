@@ -112,6 +112,27 @@ async def api_health_check():
     )
 
 
+@app.get(f"{settings.API_PREFIX}/debug/routes")
+async def list_routes():
+    """
+    List all registered API routes (for debugging deployment issues)
+
+    Returns list of routes to verify which endpoints are available
+    """
+    routes = []
+    for route in app.routes:
+        if hasattr(route, "path") and hasattr(route, "methods"):
+            routes.append({
+                "path": route.path,
+                "methods": list(route.methods) if route.methods else [],
+                "name": route.name
+            })
+    return {
+        "total_routes": len(routes),
+        "routes": sorted(routes, key=lambda x: x["path"])
+    }
+
+
 # ============================================================================
 # Application Lifecycle Events
 # ============================================================================
