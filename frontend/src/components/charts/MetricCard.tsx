@@ -92,29 +92,35 @@ export function MetricCard({
             }).join(" ");
 
             return (
-              <div className="h-14 w-full rounded-lg overflow-hidden mt-2">
-                <svg
-                  className="h-full w-full"
-                  viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
-                  preserveAspectRatio="none"
-                >
-                  {/* Gradient definition */}
-                  <defs>
-                    <linearGradient id="sparklineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor={delta?.isPositive ? "#2F7FD9" : "#EC3115"} />
-                      <stop offset="100%" stopColor={delta?.isPositive ? "#1D4D83" : "#D42C13"} />
-                    </linearGradient>
-                  </defs>
-                  <polyline
-                    fill="none"
-                    stroke="url(#sparklineGradient)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    points={points}
-                    opacity="0.8"
-                  />
-                </svg>
+              <div className="space-y-1">
+                <div className="h-14 w-full rounded-lg overflow-hidden mt-2">
+                  <svg
+                    className="h-full w-full"
+                    viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
+                    preserveAspectRatio="none"
+                  >
+                    {/* Gradient definition */}
+                    <defs>
+                      <linearGradient id="sparklineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor={delta?.isPositive ? "#2F7FD9" : "#EC3115"} />
+                        <stop offset="100%" stopColor={delta?.isPositive ? "#1D4D83" : "#D42C13"} />
+                      </linearGradient>
+                    </defs>
+                    <polyline
+                      fill="none"
+                      stroke="url(#sparklineGradient)"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      points={points}
+                      opacity="0.8"
+                    />
+                  </svg>
+                </div>
+                {/* Time range label */}
+                <div className="text-[9px] text-[#B59D81] font-light tracking-wide">
+                  Last {numPoints} months
+                </div>
               </div>
             );
           })()}

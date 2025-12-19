@@ -9,6 +9,7 @@ import {
   Legend,
   Area,
   ComposedChart,
+  ReferenceLine,
 } from "recharts";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { formatCurrency, formatNumber } from "@/lib/utils";
@@ -57,6 +58,9 @@ export function ForecastChart({
 
     return [...historical, ...forecast];
   }, [historicalData, forecastData, xKey, yKey]);
+
+  // Get the X value where forecast starts (first forecast period)
+  const forecastStartX = forecastData.length > 0 ? forecastData[0].period : null;
 
   // Calculate dynamic domain
   const yDomain = useMemo(() => {
@@ -144,30 +148,46 @@ export function ForecastChart({
                   }}
                 />
                 <Legend />
+                {/* Forecast Start Indicator */}
+                {forecastStartX && (
+                  <ReferenceLine
+                    x={forecastStartX}
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    strokeDasharray="3 3"
+                    label={{
+                      value: "← Forecast",
+                      position: "top",
+                      fill: "#f59e0b",
+                      fontSize: 11,
+                      fontWeight: 600,
+                    }}
+                  />
+                )}
                 {/* Confidence Interval */}
                 <Area
                   type="monotone"
                   dataKey="upperBound"
                   stroke="none"
-                  fill="#3b82f6"
-                  fillOpacity={0.1}
-                  name="Upper Bound"
+                  fill="#f59e0b"
+                  fillOpacity={0.15}
+                  name="Confidence Range"
                 />
                 <Area
                   type="monotone"
                   dataKey="lowerBound"
                   stroke="none"
-                  fill="#3b82f6"
-                  fillOpacity={0.1}
-                  name="Lower Bound"
+                  fill="#f59e0b"
+                  fillOpacity={0.15}
+                  name=""
                 />
                 {/* Historical Data */}
                 <Line
                   type="monotone"
                   dataKey="actual"
                   stroke="#3b82f6"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
+                  strokeWidth={3}
+                  dot={{ r: 4, fill: "#3b82f6" }}
                   name="Actual"
                   connectNulls={false}
                 />
@@ -175,10 +195,10 @@ export function ForecastChart({
                 <Line
                   type="monotone"
                   dataKey="forecast"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={{ r: 3 }}
+                  stroke="#f59e0b"
+                  strokeWidth={3}
+                  strokeDasharray="8 4"
+                  dot={{ r: 4, fill: "#f59e0b" }}
                   name="Forecast"
                   connectNulls={false}
                 />

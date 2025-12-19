@@ -67,11 +67,12 @@ async def get_dashboard_summary():
         # Query the raw daily_sales_fact table
         # Note: order_total is the final amount charged (includes tax, delivery, tip)
         # net_revenue is revenue after discounts
+        # AOV = total revenue / total orders (not average of order totals)
         query = """
         SELECT
             SUM(net_revenue) as total_revenue,
             COUNT(DISTINCT order_id) as total_orders,
-            AVG(order_total) as avg_order_value
+            SUM(net_revenue) / COUNT(DISTINCT order_id) as avg_order_value
         FROM main.dominos_realistic.daily_sales_fact
         WHERE order_date >= DATE_SUB(CURRENT_DATE(), 180)
         """
