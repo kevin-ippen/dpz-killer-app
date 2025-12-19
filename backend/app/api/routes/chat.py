@@ -156,7 +156,10 @@ class MASStreamingClient:
             logger.info(f"[GENIE POLL] Polling space {space_id[:12]}... for conversations after {after_timestamp}")
 
             # List all conversations in the space
-            conversations = self.client.genie.list_conversations(space_id=space_id)
+            conversations_response = self.client.genie.list_conversations(space_id=space_id)
+
+            # Extract conversations list from response
+            conversations = list(conversations_response) if hasattr(conversations_response, '__iter__') else []
 
             chart_refs = []
 
@@ -373,8 +376,6 @@ class MASStreamingClient:
                                     if event_type == "response.output_text.delta":
                                         delta = event.get("delta", "")
                                         if delta:
-                                            # Accumulate text for post-processing
-                                            full_response_text += delta
                                             logger.debug(f"[MAS] Text delta: {delta[:50]}")
                                             yield {
                                                 "type": "text.delta",
