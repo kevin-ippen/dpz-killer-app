@@ -291,6 +291,22 @@ class MASStreamingClient:
                                         logger.debug(f"[MAS] Metadata event: {event_type}")
                                         pass
 
+                                    # Handle error events from MAS
+                                    elif event_type == "error":
+                                        error_message = event.get("message", "Unknown error occurred")
+                                        error_code = event.get("code", "unknown")
+                                        logger.error(f"[MAS] Error event received: {error_message} (code: {error_code})")
+
+                                        # Yield error to frontend so user can see it
+                                        yield {
+                                            "type": "error",
+                                            "message": error_message,
+                                            "code": error_code
+                                        }
+
+                                        # Continue processing - don't stop the stream
+                                        # The agent may recover or provide partial results
+
                                     # Log unhandled events
                                     else:
                                         logger.debug(f"[MAS] Unhandled event: {json.dumps(event)[:300]}")
