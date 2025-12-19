@@ -57,171 +57,15 @@ class StreamChatRequest(BaseModel):
 # ============================================================================
 
 class MASStreamingClient:
-    """Client for streaming responses from MAS endpoint"""
+    """Client for streaming responses from MAS endpoint
 
-    # Mapping of agent names to their Genie space IDs
-    AGENT_SPACE_MAPPING = {
-        "agent-executive-finance-analytics": "01f0d9ef33dc133a9d6a107ee87db350",
-        "agent-sales-analytics": "01f0d9ef373a1506b11d2cb97e212664",
-        "agent-operations-analytics": "01f0d9ef366215dfbebe9d8aa0025e62",
-        "agent-customer-analytics": "01f0d9ef359218ebac1354c889609c9e",
-        "agent-marketing-performance-analytics": "01f0d9ef34b3152b8ac35aa8e180f37b",
-    }
+    Note: Charts are generated client-side from parsed markdown tables.
+    No Genie space polling is performed.
+    """
 
     def __init__(self):
         self.client = WorkspaceClient()
         self.endpoint_name = os.getenv("MAS_ENDPOINT_NAME", "mas-3d3b5439-endpoint")
-
-    def get_genie_coordinates_from_conversation(self, conversation_id: str, space_id: str = None) -> dict:
-        """
-        Query Genie Space to get full coordinates from conversation_id
-
-        Args:
-            conversation_id: Genie conversation ID
-            space_id: Optional space ID (if known)
-
-        Returns:
-            Dict with spaceId, conversationId, messageId, attachmentId
-            Returns None if not found
-        """
-        try:
-            logger.info(f"[GENIE] Querying conversation: {conversation_id}, space: {space_id}")
-
-            # If we have space_id, use it directly
-            if space_id:
-                # Get conversation messages
-                messages = self.client.genie.list_messages(
-                    space_id=space_id,
-                    conversation_id=conversation_id
-                )
-
-                # Find the most recent message with query results
-                for message in reversed(list(messages)):
-                    logger.debug(f"[GENIE] Message {message.id}: status={message.status}")
-
-                    # Look for completed messages with attachments
-                    if message.status == "COMPLETED":
-                        # Get full message details to access attachments array
-                        try:
-                            msg_details = self.client.genie.get_message(
-                                space_id=space_id,
-                                conversation_id=conversation_id,
-                                message_id=message.id
-                            )
-
-                            # Extract attachment_id from attachments array
-                            # Per Genie API: attachments populated when status is COMPLETED
-                            if hasattr(msg_details, 'attachments') and msg_details.attachments:
-                                attachments = msg_details.attachments
-                                logger.debug(f"[GENIE] Found {len(attachments)} attachments in message {message.id}")
-
-                                # Use the first attachment (typically the query result)
-                                for attachment in attachments:
-                                    attachment_id = getattr(attachment, 'id', None)
-
-                                    if attachment_id:
-                                        logger.info(f"[GENIE] ✅ Found coordinates! message={message.id}, attachment={attachment_id}")
-                                        return {
-                                            "spaceId": space_id,
-                                            "conversationId": conversation_id,
-                                            "messageId": message.id,
-                                            "attachmentId": attachment_id
-                                        }
-                            else:
-                                logger.debug(f"[GENIE] Message {message.id} has no attachments array")
-
-                        except Exception as msg_err:
-                            logger.warning(f"[GENIE] Could not get message details for {message.id}: {msg_err}")
-                            continue
-
-            logger.warning(f"[GENIE] Could not find Genie coordinates for conversation {conversation_id}")
-            return None
-
-        except Exception as e:
-            logger.error(f"[GENIE] Failed to query Genie Space: {e}", exc_info=True)
-            return None
-
-    def poll_genie_space_for_recent_charts(self, space_id: str, after_timestamp: float) -> list[dict]:
-        """
-        Poll a Genie space for conversations created after a timestamp
-
-        Args:
-            space_id: The Genie space ID to poll
-            after_timestamp: Unix timestamp - only return conversations created after this time
-
-        Returns:
-            List of chart references with Genie coordinates
-        """
-        try:
-            logger.info(f"[GENIE POLL] Polling space {space_id[:12]}... for conversations after {after_timestamp}")
-
-            # List all conversations in the space
-            conversations_response = self.client.genie.list_conversations(space_id=space_id)
-
-            # Extract conversations list from response
-            conversations = list(conversations_response) if hasattr(conversations_response, '__iter__') else []
-
-            chart_refs = []
-
-            for conv in conversations:
-                # Get conversation creation time (assuming conv has created_timestamp or similar)
-                # If the SDK doesn't provide timestamp, we'll check all recent conversations
-                conv_time = getattr(conv, 'created_timestamp', None)
-
-                # For now, check the most recent conversations (up to 5)
-                # Later we can filter by timestamp if available
-                logger.debug(f"[GENIE POLL] Checking conversation {conv.id}")
-
-                # List messages in the conversation
-                messages = self.client.genie.list_messages(
-                    space_id=space_id,
-                    conversation_id=conv.id
-                )
-
-                # Look for COMPLETED messages with attachments
-                for message in messages:
-                    if message.status == "COMPLETED":
-                        try:
-                            # Get full message details
-                            msg_details = self.client.genie.get_message(
-                                space_id=space_id,
-                                conversation_id=conv.id,
-                                message_id=message.id
-                            )
-
-                            # Check for attachments
-                            if hasattr(msg_details, 'attachments') and msg_details.attachments:
-                                for attachment in msg_details.attachments:
-                                    attachment_id = getattr(attachment, 'id', None)
-
-                                    if attachment_id:
-                                        logger.info(f"[GENIE POLL] ✅ Found chart in conversation {conv.id}")
-                                        chart_refs.append({
-                                            "spaceId": space_id,
-                                            "conversationId": conv.id,
-                                            "messageId": message.id,
-                                            "attachmentId": attachment_id
-                                        })
-                                        # Only take the first attachment from first completed message
-                                        break
-
-                            if chart_refs:  # Found a chart in this conversation
-                                break
-
-                        except Exception as msg_err:
-                            logger.warning(f"[GENIE POLL] Error checking message {message.id}: {msg_err}")
-                            continue
-
-                # Limit to checking first 5 conversations to avoid performance issues
-                if len(chart_refs) >= 1:
-                    break
-
-            logger.info(f"[GENIE POLL] Found {len(chart_refs)} chart(s) in space {space_id[:12]}...")
-            return chart_refs
-
-        except Exception as e:
-            logger.error(f"[GENIE POLL] Failed to poll space {space_id}: {e}", exc_info=True)
-            return []
 
     async def stream_events(self, messages: List[ChatMessage]) -> AsyncIterator[dict]:
         """
@@ -231,15 +75,12 @@ class MASStreamingClient:
         - {"type": "text.delta", "delta": "..."}
         - {"type": "tool.call", "name": "...", "args": {...}}
         - {"type": "tool.output", "name": "...", "output": "..."}
-        - {"type": "chart.reference", "genie": {...}, ...} (after streaming completes)
         - {"type": "error", "message": "..."}
+
+        Note: Charts are generated client-side from markdown tables.
+        No chart.reference events are emitted.
         """
         try:
-            # Track analytics agents called and start timestamp for Genie polling
-            import time
-            request_start_time = time.time()
-            analytics_agents_called = []  # Track which analytics agents were called
-
             # Convert to MAS input format (expects 'input' array, not 'messages')
             input_messages = []
             for msg in messages:
@@ -250,7 +91,6 @@ class MASStreamingClient:
 
             logger.info(f"[MAS] Streaming from endpoint: {self.endpoint_name}")
             logger.info(f"[MAS] Message count: {len(input_messages)}")
-            logger.info(f"[MAS] Request start time: {request_start_time}")
 
             # Use httpx to make streaming request directly
             import httpx
@@ -392,11 +232,6 @@ class MASStreamingClient:
                                             tool_name = item.get("name", "unknown")
                                             logger.info(f"[MAS] Tool completed: {tool_name}")
 
-                                            # Track if this is an analytics agent (for Genie polling later)
-                                            if tool_name in self.AGENT_SPACE_MAPPING:
-                                                analytics_agents_called.append(tool_name)
-                                                logger.info(f"[MAS] ✅ Analytics agent tracked for Genie polling: {tool_name}")
-
                                             # Emit tool.output to mark completion (stops spinner)
                                             yield {
                                                 "type": "tool.output",
@@ -467,38 +302,10 @@ class MASStreamingClient:
                                     logger.error(f"[MAS] Failed to parse event: {parse_error}", exc_info=True)
                                     continue
 
-            # After streaming completes, poll Genie spaces for charts created by analytics agents
+            # After streaming completes
             logger.info(f"[MAS] Streaming complete.")
-            logger.info(f"[MAS] Analytics agents called: {analytics_agents_called}")
-
-            if analytics_agents_called:
-                # Poll each space that was used
-                for agent_name in analytics_agents_called:
-                    space_id = self.AGENT_SPACE_MAPPING.get(agent_name)
-                    if space_id:
-                        logger.info(f"[MAS] Polling Genie space for {agent_name}...")
-
-                        try:
-                            # Poll the space for recent charts
-                            chart_refs = self.poll_genie_space_for_recent_charts(
-                                space_id=space_id,
-                                after_timestamp=request_start_time
-                            )
-
-                            # Emit chart.reference event for each chart found
-                            for genie_ref in chart_refs:
-                                logger.info(f"[MAS] ✅ Emitting chart.reference for conversation {genie_ref['conversationId'][:12]}...")
-                                yield {
-                                    "type": "chart.reference",
-                                    "genie": genie_ref,
-                                    "title": "Query Result",
-                                    "subtitle": "Click to view chart"
-                                }
-
-                        except Exception as poll_err:
-                            logger.error(f"[MAS] Failed to poll space for {agent_name}: {poll_err}", exc_info=True)
-            else:
-                logger.info(f"[MAS] No analytics agents were called - no Genie polling needed")
+            # Note: Charts are now generated client-side from parsed table data
+            # No need to poll Genie spaces or emit chart.reference events
 
         except Exception as e:
             logger.error(f"[MAS] Streaming error: {e}", exc_info=True)
