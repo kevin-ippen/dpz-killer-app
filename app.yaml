@@ -27,6 +27,16 @@ resources:
       securable_full_name: main.dominos_realistic
       privilege: SELECT
 
+    # Grant READ access to dominos_files schema (for Explorer)
+    - securable_type: SCHEMA
+      securable_full_name: main.dominos_files
+      privilege: SELECT
+
+    # Grant READ access to volumes in dominos_files (for file browsing and PDF preview)
+    - securable_type: SCHEMA
+      securable_full_name: main.dominos_files
+      privilege: READ_VOLUME
+
     # Grant access to LLM serving endpoint
     - securable_type: SERVING_ENDPOINT
       securable_full_name: databricks-gpt-oss-120b
