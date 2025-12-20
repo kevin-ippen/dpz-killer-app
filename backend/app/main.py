@@ -183,60 +183,62 @@ _cache_timestamp: float = 0
 
 def generate_schema_manifest() -> List[SchemaAssets]:
     """
-    Generate schema manifest by querying information_schema.
+    Generate schema manifest using WorkspaceClient SDK.
     Called at startup and when cache expires.
+    This is the canonical approach from Databricks SDK.
     """
-    from app.repositories.databricks_repo import databricks_repo
+    from databricks.sdk import WorkspaceClient
     import time
 
-    logger.info("Generating schema manifest from information_schema...")
+    logger.info("Generating schema manifest using WorkspaceClient SDK...")
 
-    schemas = [
+    try:
+        w = WorkspaceClient()  # Auto-configures in Databricks App context
+    except Exception as e:
+        logger.error(f"Failed to initialize WorkspaceClient: {e}")
+        return []
+
+    schemas_to_fetch = [
         ("main", "dominos_analytics"),
         ("main", "dominos_realistic"),
         ("main", "dominos_files"),
     ]
 
     results = []
-    for catalog, schema in schemas:
+    for catalog, schema_name in schemas_to_fetch:
         tables = []
         volumes = []
 
-        # Get tables
+        # Get tables using SDK
         try:
-            tables_query = f"""
-            SELECT table_name, table_catalog || '.' || table_schema || '.' || table_name as full_name,
-                   table_type, comment
-            FROM system.information_schema.tables
-            WHERE table_catalog = '{catalog}' AND table_schema = '{schema}'
-            ORDER BY table_name
-            """
-            table_results = databricks_repo.execute_query(tables_query)
-            tables = [TableInfo(**row) for row in table_results]
-            logger.info(f"Found {len(tables)} tables in {catalog}.{schema}")
-        except Exception as e:
-            logger.warning(f"Failed to list tables in {catalog}.{schema}: {e}")
-
-        # Get volumes - use SHOW VOLUMES (canonical UC approach)
-        try:
-            volumes_query = f"SHOW VOLUMES IN {catalog}.{schema}"
-            volume_results = databricks_repo.execute_query(volumes_query)
-
-            # SHOW VOLUMES returns: catalog_name, schema_name, volume_name, volume_type,
-            # storage_location, comment, owner, created_at, created_by, updated_at, updated_by
-            for row in volume_results:
-                volumes.append(VolumeInfo(
-                    name=row.get("volume_name"),
-                    full_name=f"{row.get('catalog_name')}.{row.get('schema_name')}.{row.get('volume_name')}",
-                    volume_type=row.get("volume_type"),
-                    storage_location=row.get("storage_location"),
-                    comment=row.get("comment")
+            table_list = w.tables.list(catalog_name=catalog, schema_name=schema_name)
+            for table in table_list:
+                tables.append(TableInfo(
+                    name=table.name,
+                    full_name=table.full_name,
+                    table_type=table.table_type.value if table.table_type else None,
+                    comment=table.comment,
                 ))
-            logger.info(f"Found {len(volumes)} volumes in {catalog}.{schema}")
+            logger.info(f"Found {len(tables)} tables in {catalog}.{schema_name}")
         except Exception as e:
-            logger.warning(f"Failed to list volumes in {catalog}.{schema}: {e}")
+            logger.warning(f"Failed to list tables in {catalog}.{schema_name}: {e}")
 
-        results.append(SchemaAssets(catalog=catalog, schema=schema, tables=tables, volumes=volumes))
+        # Get volumes using SDK
+        try:
+            volume_list = w.volumes.list(catalog_name=catalog, schema_name=schema_name)
+            for volume in volume_list:
+                volumes.append(VolumeInfo(
+                    name=volume.name,
+                    full_name=volume.full_name,
+                    volume_type=volume.volume_type.value if volume.volume_type else None,
+                    storage_location=volume.storage_location,
+                    comment=volume.comment
+                ))
+            logger.info(f"Found {len(volumes)} volumes in {catalog}.{schema_name}")
+        except Exception as e:
+            logger.warning(f"Failed to list volumes in {catalog}.{schema_name}: {e}")
+
+        results.append(SchemaAssets(catalog=catalog, schema=schema_name, tables=tables, volumes=volumes))
 
     logger.info(f"Schema manifest generated: {sum(len(s.tables) + len(s.volumes) for s in results)} total assets")
     return results
