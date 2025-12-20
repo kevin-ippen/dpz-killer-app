@@ -61,6 +61,22 @@ app.include_router(genie.router, prefix=settings.API_PREFIX)
 
 
 # ============================================================================
+# CRITICAL: Test endpoint to verify deployment
+# ============================================================================
+@app.get(f"{settings.API_PREFIX}/test")
+async def test_endpoint():
+    """
+    Simple test endpoint - if this returns JSON, API routing works.
+    If this returns HTML, SPA catch-all is broken.
+    """
+    return {
+        "status": "API_ROUTING_WORKS",
+        "message": "If you see this JSON, the API is working",
+        "commit": "5f8cf45_test_endpoint"
+    }
+
+
+# ============================================================================
 # Root Endpoints
 # ============================================================================
 
