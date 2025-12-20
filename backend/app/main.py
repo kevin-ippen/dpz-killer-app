@@ -134,6 +134,21 @@ async def list_routes():
     }
 
 
+@app.get(f"{settings.API_PREFIX}/debug/deployment")
+async def deployment_info():
+    """Check deployment version and config"""
+    import sys
+    import os
+    return {
+        "status": "deployed",
+        "commit": "5ce3353_enhanced_explorer",  # Update this with each deployment
+        "api_prefix": settings.API_PREFIX,
+        "python_version": sys.version,
+        "has_explore_endpoints": any("explore" in str(r.path) for r in app.routes if hasattr(r, "path")),
+        "working_directory": os.getcwd(),
+    }
+
+
 # ============================================================================
 # TEMPORARY: Explore Endpoints (workaround until explore.py gets deployed)
 # ============================================================================
