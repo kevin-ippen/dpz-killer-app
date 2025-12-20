@@ -123,10 +123,15 @@ export function Dashboard() {
   // });
 
   // Fetch CAC by channel (with ALL filters so it updates)
-  const { data: cacByChannel, isLoading: cacLoading } = useQuery({
+  const { data: cacByChannel, isLoading: cacLoading, error: cacError } = useQuery({
     queryKey: ["cac-by-channel", startDate, endDate, segment, channel],
     queryFn: metricsApi.getCacByChannel,
+    retry: 1,
   });
+
+  if (cacError) {
+    console.error("CAC by channel error:", cacError);
+  }
 
   // Fetch ARPU by segment (with ALL filters so it updates)
   const { data: arpuBySegment, isLoading: arpuLoading } = useQuery({
@@ -163,10 +168,15 @@ export function Dashboard() {
   }
 
   // Fetch cohort retention data
-  const { data: cohortRetention, isLoading: cohortLoading } = useQuery({
+  const { data: cohortRetention, isLoading: cohortLoading, error: cohortError } = useQuery({
     queryKey: ["cohort-retention"],
     queryFn: () => metricsApi.getCohortRetention(),
+    retry: 1,
   });
+
+  if (cohortError) {
+    console.error("Cohort retention error:", cohortError);
+  }
 
   // Fetch channel breakdown (with ALL filters so it updates)
   const { data: channelBreakdown, isLoading: channelLoading } = useQuery({
@@ -692,8 +702,22 @@ export function Dashboard() {
 
         {/* Marketing Tab */}
         <TabsContent value="marketing" className="space-y-6">
+          {/* Error Display */}
+          {(cacError || attachDetailedError || cohortError) && (
+            <Card className="border-red-500 bg-red-50">
+              <CardContent className="pt-6">
+                <div className="text-red-800 text-sm">
+                  <strong>Error loading marketing data:</strong>
+                  {cacError && <div>- CAC data failed to load</div>}
+                  {attachDetailedError && <div>- Attach rate data failed to load</div>}
+                  {cohortError && <div>- Cohort data failed to load</div>}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* CAC Efficiency Gauge */}
-          {cacByChannel && cacByChannel.length > 0 && (
+          {cacByChannel && cacByChannel.length > 0 && !cacError && (
             <CACEfficiencyGauge data={cacByChannel} isLoading={cacLoading} />
           )}
 
@@ -763,7 +787,7 @@ export function Dashboard() {
           </Card>
 
           {/* Attach Rate Rings */}
-          {attachRateDetailed && attachRateDetailed.length > 0 && (
+          {attachRateDetailed && attachRateDetailed.length > 0 && !attachDetailedError && (
             <AttachRateRings data={attachRateDetailed} isLoading={attachDetailedLoading} />
           )}
 
