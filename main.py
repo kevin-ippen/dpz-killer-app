@@ -26,9 +26,13 @@ from fastapi.responses import FileResponse
 from datetime import datetime
 
 # Import backend modules
-from app.api.routes import items, metrics, chat as chat_api
+from app.api.routes import items, metrics, chat as chat_api, genie
 from app.models.schemas import HealthResponse
 from app.core.config import settings
+
+# Import for explore endpoints
+from typing import List
+from pydantic import BaseModel
 
 # Create main FastAPI app
 app = FastAPI(
@@ -56,8 +60,102 @@ app.add_middleware(
 app.include_router(items.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
 app.include_router(chat_api.router, prefix="/api")
+app.include_router(genie.router, prefix="/api")
 
 logger.info("✅ API routes registered")
+
+# ============================================================================
+# EXPLORE ENDPOINTS (inline for Unity Catalog browsing)
+# ============================================================================
+
+class TableInfo(BaseModel):
+    name: str
+    full_name: str
+    table_type: str | None = None
+    comment: str | None = None
+
+class VolumeInfo(BaseModel):
+    name: str
+    full_name: str
+    volume_type: str | None = None
+    storage_location: str | None = None
+    comment: str | None = None
+
+class SchemaAssets(BaseModel):
+    catalog: str
+    schema: str
+    tables: List[TableInfo]
+    volumes: List[VolumeInfo]
+
+# Cache for schema manifest
+_schema_cache: List[SchemaAssets] | None = None
+
+@app.get("/api/explore/schemas", response_model=List[SchemaAssets])
+async def get_explore_schemas():
+    """Get all tables and volumes from configured schemas"""
+    global _schema_cache
+
+    if _schema_cache:
+        return _schema_cache
+
+    from databricks.sdk import WorkspaceClient
+
+    try:
+        w = WorkspaceClient()
+        schemas_to_fetch = [
+            ("main", "dominos_analytics"),
+            ("main", "dominos_realistic"),
+            ("main", "dominos_files"),
+        ]
+
+        results = []
+        for catalog, schema_name in schemas_to_fetch:
+            tables = []
+            volumes = []
+
+            try:
+                for table in w.tables.list(catalog_name=catalog, schema_name=schema_name):
+                    tables.append(TableInfo(
+                        name=table.name,
+                        full_name=table.full_name,
+                        table_type=table.table_type.value if table.table_type else None,
+                        comment=table.comment,
+                    ))
+            except Exception as e:
+                logger.warning(f"Failed to list tables in {catalog}.{schema_name}: {e}")
+
+            try:
+                for volume in w.volumes.list(catalog_name=catalog, schema_name=schema_name):
+                    volumes.append(VolumeInfo(
+                        name=volume.name,
+                        full_name=volume.full_name,
+                        volume_type=volume.volume_type.value if volume.volume_type else None,
+                        storage_location=volume.storage_location,
+                        comment=volume.comment
+                    ))
+            except Exception as e:
+                logger.warning(f"Failed to list volumes in {catalog}.{schema_name}: {e}")
+
+            results.append(SchemaAssets(catalog=catalog, schema=schema_name, tables=tables, volumes=volumes))
+
+        _schema_cache = results
+        return results
+    except Exception as e:
+        logger.error(f"Failed to fetch schemas: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/explore/tables/{catalog}/{schema}/{table}/preview")
+async def preview_table(catalog: str, schema: str, table: str):
+    """Preview table data"""
+    from app.repositories.databricks_repo import databricks_repo
+    try:
+        query = f"SELECT * FROM {catalog}.{schema}.{table} LIMIT 100"
+        results = databricks_repo.execute_query(query)
+        columns = list(results[0].keys()) if results else []
+        return {"table": f"{catalog}.{schema}.{table}", "columns": columns, "rows": results}
+    except Exception as e:
+        logger.error(f"Failed to preview table: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Health check endpoints
 @app.get("/health")
@@ -95,21 +193,12 @@ if os.path.exists(frontend_dist):
         index_path = os.path.join(frontend_dist, "index.html")
         return FileResponse(index_path)
 
-    # SPA fallback for client-side routing
-    @app.get("/{full_path:path}")
-    async def spa_fallback(full_path: str):
-        """
-        Serve React app for client-side routing
-
-        Exclude API and asset paths.
-        """
-        # Don't serve SPA for these paths
-        if (full_path.startswith("api/") or
-            full_path.startswith("assets/") or
-            full_path == "health"):
-            raise HTTPException(status_code=404, detail="Not found")
-
-        # Serve index.html for all other routes (SPA routing)
+    # Serve specific SPA routes (NO CATCH-ALL to avoid shadowing API)
+    @app.get("/chat")
+    @app.get("/dashboard")
+    @app.get("/explore")
+    async def spa_routes():
+        """Serve React app for specific frontend routes"""
         index_path = os.path.join(frontend_dist, "index.html")
         if os.path.exists(index_path):
             return FileResponse(index_path)
