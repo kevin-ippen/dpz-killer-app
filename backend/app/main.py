@@ -428,33 +428,13 @@ if os.path.exists(frontend_dist):
             return FileResponse(worker_path, media_type="application/javascript")
         raise HTTPException(status_code=404, detail="PDF worker not found")
 
-    # Catch-all route for React Router (SPA routing)
-    # This will match any path that doesn't have a more specific route
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        """
-        Serve React app for all non-API routes
-
-        This enables client-side routing in the React app.
-        IMPORTANT: Must explicitly exclude API routes to prevent shadowing.
-        """
-        # Exclude API routes - let FastAPI handle 404s for unknown API paths
-        if full_path.startswith("api/") or full_path.startswith("api"):
-            raise HTTPException(status_code=404, detail="API endpoint not found")
-
-        # Exclude static assets (already mounted separately)
-        if full_path.startswith("assets/"):
-            raise HTTPException(status_code=404, detail="Asset not found")
-
-        # Exclude PDF worker and other JS files
-        if full_path.endswith(".mjs") or full_path.endswith(".js"):
-            raise HTTPException(status_code=404, detail="File not found")
-
-        # Exclude health/debug endpoints
-        if full_path in ["health", "docs", "redoc", "openapi.json"]:
-            raise HTTPException(status_code=404)
-
-        # Serve React app for all other paths (client-side routing)
+    # Serve React app for specific frontend routes only
+    # Do NOT use catch-all /{full_path:path} as it shadows API routes
+    @app.get("/chat")
+    @app.get("/dashboard")
+    @app.get("/explore")
+    async def serve_spa_routes():
+        """Serve React app for specific SPA routes"""
         index_path = os.path.join(frontend_dist, "index.html")
         return FileResponse(index_path)
 
