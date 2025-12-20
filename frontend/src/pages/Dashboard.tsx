@@ -151,10 +151,16 @@ export function Dashboard() {
   });
 
   // Fetch detailed attach rate for rings visualization
-  const { data: attachRateDetailed, isLoading: attachDetailedLoading } = useQuery({
+  const { data: attachRateDetailed, isLoading: attachDetailedLoading, error: attachDetailedError } = useQuery({
     queryKey: ["attach-rate-detailed"],
     queryFn: metricsApi.getAttachRateDetailed,
+    retry: 1,
   });
+
+  // Log any errors for debugging
+  if (attachDetailedError) {
+    console.error("Attach rate detailed error:", attachDetailedError);
+  }
 
   // Fetch cohort retention data
   const { data: cohortRetention, isLoading: cohortLoading } = useQuery({
