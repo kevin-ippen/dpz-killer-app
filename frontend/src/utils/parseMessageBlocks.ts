@@ -1,11 +1,12 @@
 /**
  * Parse message content into blocks (text, tables, citations, etc.)
  *
- * Extracts markdown tables, PDF citations, and other structured content from text
- * and creates appropriate block objects.
+ * Extracts markdown tables, citations (using comprehensive parser),
+ * and other structured content from text.
  */
 
 import { ChatBlock, TableBlock, CitationBlock } from "@/types/chat";
+import { parseCitations, Citation } from "./citationParser";
 
 interface ParsedContent {
   blocks: ChatBlock[];
@@ -13,54 +14,45 @@ interface ParsedContent {
 }
 
 /**
- * Extract PDF citations from markdown links
- * Format: [Document Name, p. 42](https://…/volumes/hr/document.pdf?page=42)
+ * Extract citations using comprehensive multi-format parser
  */
 function extractCitations(content: string, messageId: string): CitationBlock[] {
-  const citations: CitationBlock[] = [];
+  // Use comprehensive citation parser with all patterns
+  const parsedCitations = parseCitations(content, null, {
+    includeSnippets: true,
+    snippetLength: 150,
+  });
 
-  // Regex to match markdown links to PDFs
-  // Matches: [link text](url)
-  const linkRegex = /\[([^\]]+)\]\(([^)]+\.pdf[^)]*)\)/gi;
-
-  let match;
-  let citationIndex = 1;
-
-  while ((match = linkRegex.exec(content)) !== null) {
-    const linkText = match[1]; // e.g., "Employee Handbook, p. 42"
-    const url = match[2]; // e.g., "https://.../ volumes/hr/employee_handbook.pdf?page=42"
-
-    // Extract page number from link text or URL
-    let page: number | undefined;
-
-    // Try to extract from link text (e.g., "p. 42" or "page 42")
-    const pageMatch = linkText.match(/p\.?\s*(\d+)|page\s+(\d+)/i);
-    if (pageMatch) {
-      page = parseInt(pageMatch[1] || pageMatch[2]);
+  // Convert to CitationBlock format
+  return parsedCitations.map((citation: Citation, index: number) => {
+    // For Unity Catalog volumes, use proxy endpoint
+    let url = citation.path;
+    const isUCVolume = url.startsWith('/Volumes/') || url.includes('/Volumes/');
+    if (isUCVolume) {
+      const encodedPath = encodeURIComponent(url);
+      url = `/api/explore/files/proxy?path=${encodedPath}`;
+      // Add page parameter if available
+      if (citation.page) {
+        url += `&page=${citation.page}`;
+      }
     }
 
-    // Also check URL query parameter
-    const urlPageMatch = url.match(/[?&]page=(\d+)/i);
-    if (urlPageMatch && !page) {
-      page = parseInt(urlPageMatch[1]);
-    }
-
-    // Extract document title (remove page reference)
-    const title = linkText.replace(/,?\s*p\.?\s*\d+|,?\s*page\s+\d+/i, '').trim();
-
-    citations.push({
-      id: `${messageId}-citation-${citationIndex}`,
+    return {
+      id: `${messageId}-citation-${index}`,
       type: "citation",
-      title: title || "Document",
+      title: citation.label,
+      label: citation.label,
       url: url,
-      page: page,
-      index: citationIndex,
-    });
-
-    citationIndex++;
-  }
-
-  return citations;
+      path: citation.path,
+      fileType: citation.type,
+      page: citation.page || undefined,
+      snippet: citation.snippet || undefined,
+      chunk: citation.chunk || undefined,
+      score: citation.score || undefined,
+      index: index + 1,
+      refNumber: citation.refNumber || undefined,
+    };
+  });
 }
 
 /**

@@ -590,3 +590,118 @@ async def execute_custom_query(
     except Exception as e:
         logger.error(f"Error executing custom query: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/hourly-heatmap")
+async def get_hourly_heatmap():
+    """
+    Get order volume by hour and day of week (last 30 days)
+
+    Returns heatmap data showing:
+    - Day of week (Mon-Sun)
+    - Hour of day (0-23)
+    - Order count for that hour/day combination
+    """
+    try:
+        # Generate synthetic heatmap data based on realistic pizza order patterns
+        # In production, this would query actual hourly data from daily_sales_fact
+        import random
+
+        days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+        data = []
+
+        for day_idx, day in enumerate(days):
+            for hour in range(24):
+                # Base order count
+                base = 100
+
+                # Peak lunch (11-14)
+                if 11 <= hour <= 14:
+                    base += 300
+                # Peak dinner (17-21)
+                if 17 <= hour <= 21:
+                    base += 500
+                # Late night (21-24)
+                if 21 <= hour <= 23:
+                    base += 200
+                # Weekend boost
+                if day_idx >= 5:
+                    base *= 1.3
+                # Friday/Saturday night
+                if (day_idx == 4 or day_idx == 5) and hour >= 18:
+                    base *= 1.5
+                # Low overnight
+                if 0 <= hour <= 9:
+                    base *= 0.2
+
+                # Add randomness
+                base *= (0.8 + random.random() * 0.4)
+
+                data.append({
+                    'day': day,
+                    'hour': hour,
+                    'dayIndex': day_idx,
+                    'value': round(base)
+                })
+
+        return data
+
+    except Exception as e:
+        logger.error(f"Error fetching hourly heatmap: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/attach-rate-detailed")
+async def get_attach_rate_detailed():
+    """
+    Get detailed attach rate data for visualization
+
+    Returns product-level attach rates with revenue and trends
+    """
+    try:
+        # For now, return mock data structured for our visualizations
+        # In production, query actual product attach data
+        data = [
+            {
+                "product": "Breadsticks",
+                "rate": 34.2,
+                "revenue": 45200000,
+                "trend": 2.3
+            },
+            {
+                "product": "Wings",
+                "rate": 28.7,
+                "revenue": 62300000,
+                "trend": 5.1
+            },
+            {
+                "product": "2-Liter Soda",
+                "rate": 42.1,
+                "revenue": 28900000,
+                "trend": -1.2
+            },
+            {
+                "product": "Desserts",
+                "rate": 18.4,
+                "revenue": 22100000,
+                "trend": 8.7
+            },
+            {
+                "product": "Dipping Sauces",
+                "rate": 52.3,
+                "revenue": 8900000,
+                "trend": 0.5
+            },
+            {
+                "product": "Salads",
+                "rate": 8.2,
+                "revenue": 12400000,
+                "trend": 12.4
+            }
+        ]
+
+        return data
+
+    except Exception as e:
+        logger.error(f"Error fetching detailed attach rate: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

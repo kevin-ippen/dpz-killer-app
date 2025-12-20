@@ -3,7 +3,7 @@ import { ChatMessage, ChatBlock, ActiveBlockRef } from "@/types/chat";
 import { FullChartView } from "./FullChartView";
 import { FullTableView } from "./FullTableView";
 import { FullImageView } from "./FullImageView";
-import { FullPDFView } from "./FullPDFView";
+import { FileViewer } from "./FileViewer";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface ResultCanvasProps {
@@ -103,7 +103,7 @@ export function ResultCanvas({
 
         {block && block.type === "table" && <FullTableView block={block} />}
 
-        {block && block.type === "citation" && <FullPDFView block={block} />}
+        {block && block.type === "citation" && <FileViewer citation={block} />}
 
         {block && block.type === "image" && <FullImageView block={block} />}
 

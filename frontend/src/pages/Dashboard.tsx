@@ -5,6 +5,10 @@ import { LineChart } from "@/components/charts/LineChart";
 import { BarChart } from "@/components/charts/BarChart";
 import { ComboChart } from "@/components/charts/ComboChart";
 import { metricsApi } from "@/api/client";
+import { OrderHeatmap } from "@/components/dashboard/OrderHeatmap";
+import { CACEfficiencyGauge } from "@/components/dashboard/CACEfficiencyGauge";
+import { AttachRateRings } from "@/components/dashboard/AttachRateRings";
+import { CohortRetentionMatrix } from "@/components/dashboard/CohortRetentionMatrix";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -136,6 +140,24 @@ export function Dashboard() {
       startDate,
       endDate
     ),
+  });
+
+  // Fetch hourly heatmap data
+  const { data: hourlyHeatmap, isLoading: heatmapLoading } = useQuery({
+    queryKey: ["hourly-heatmap"],
+    queryFn: metricsApi.getHourlyHeatmap,
+  });
+
+  // Fetch detailed attach rate for rings visualization
+  const { data: attachRateDetailed, isLoading: attachDetailedLoading } = useQuery({
+    queryKey: ["attach-rate-detailed"],
+    queryFn: metricsApi.getAttachRateDetailed,
+  });
+
+  // Fetch cohort retention data
+  const { data: cohortRetention, isLoading: cohortLoading } = useQuery({
+    queryKey: ["cohort-retention"],
+    queryFn: () => metricsApi.getCohortRetention(),
   });
 
   // Fetch channel breakdown (with ALL filters so it updates)
@@ -558,6 +580,11 @@ export function Dashboard() {
               isLoading={channelLoading}
             />
           </div>
+
+          {/* Order Heatmap */}
+          <div className="grid gap-6">
+            <OrderHeatmap data={hourlyHeatmap || []} isLoading={heatmapLoading} />
+          </div>
         </TabsContent>
 
         {/* Sales Analysis Tab */}
@@ -633,6 +660,9 @@ export function Dashboard() {
 
         {/* Marketing Tab */}
         <TabsContent value="marketing" className="space-y-6">
+          {/* CAC Efficiency Gauge */}
+          <CACEfficiencyGauge data={cacByChannel || []} isLoading={cacLoading} />
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -698,11 +728,14 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Attach Rates */}
+          {/* Attach Rate Rings */}
+          <AttachRateRings data={attachRateDetailed || []} isLoading={attachDetailedLoading} />
+
+          {/* Attach Rates - Legacy */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <MetricTooltip term="ATTACH_RATE">Upsell Attach Rates</MetricTooltip>
+                <MetricTooltip term="ATTACH_RATE">Upsell Attach Rates by Segment</MetricTooltip>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -922,6 +955,15 @@ export function Dashboard() {
               })()}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Advanced Analytics Tab */}
+        <TabsContent value="advanced" className="space-y-6">
+          {/* Cohort Retention Matrix */}
+          <CohortRetentionMatrix data={cohortRetention || []} isLoading={cohortLoading} />
+
+          {/* Hourly Patterns */}
+          <OrderHeatmap data={hourlyHeatmap || []} isLoading={heatmapLoading} />
         </TabsContent>
       </Tabs>
     </div>

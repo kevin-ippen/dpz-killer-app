@@ -61,14 +61,31 @@ export interface ImageBlock {
   height?: number;
 }
 
+export type FileType =
+  | 'pdf'
+  | 'word'
+  | 'excel'
+  | 'powerpoint'
+  | 'text'
+  | 'data'
+  | 'image'
+  | 'web'
+  | 'file';
+
 export interface CitationBlock {
   id: string;
   type: "citation";
   title: string; // Document name (e.g., "Employee Handbook")
-  url: string; // PDF URL (may include ?page=X)
+  label: string; // Display label
+  url: string; // File URL or path
+  path: string; // Normalized file path
+  fileType: FileType; // File type category
   page?: number; // Extracted page number
-  snippet?: string; // Text snippet from the citation
+  snippet?: string; // Context snippet from the citation
+  chunk?: string; // Document chunk/excerpt
+  score?: number; // Relevance score (0-1)
   index?: number; // Footnote number (e.g., [1], [2])
+  refNumber?: number; // Reference number if footnote-style
 }
 
 export type ChatBlock = TextBlock | ChartBlock | TableBlock | ImageBlock | CitationBlock;

@@ -287,6 +287,32 @@ export const metricsApi = {
     });
     return response.data;
   },
+
+  /**
+   * Get hourly heatmap data (order volume by hour and day)
+   */
+  getHourlyHeatmap: async (): Promise<Array<{
+    day: string;
+    hour: number;
+    dayIndex: number;
+    value: number;
+  }>> => {
+    const response = await apiClient.get('/metrics/hourly-heatmap');
+    return response.data;
+  },
+
+  /**
+   * Get detailed attach rate with revenue and trends
+   */
+  getAttachRateDetailed: async (): Promise<Array<{
+    product: string;
+    rate: number;
+    revenue: number;
+    trend: number;
+  }>> => {
+    const response = await apiClient.get('/metrics/attach-rate-detailed');
+    return response.data;
+  },
 };
 
 export default apiClient;
