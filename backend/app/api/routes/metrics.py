@@ -338,7 +338,8 @@ async def get_cohort_retention(
 
     except Exception as e:
         logger.error(f"Error fetching cohort retention: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        # Return empty array instead of raising error - table may not exist yet
+        return []
 
 
 @router.get("/gmv-trend")
