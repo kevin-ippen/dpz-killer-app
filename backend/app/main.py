@@ -20,7 +20,8 @@ import logging
 import os
 
 from app.core.config import settings
-from app.api.routes import items, metrics, chat, genie, explore
+from app.api.routes import items, metrics, chat, genie
+# NOTE: explore endpoints are defined directly in this file (main.py) not in explore.py
 from app.models.schemas import HealthResponse
 
 # Configure logging
@@ -56,7 +57,7 @@ app.include_router(items.router, prefix=settings.API_PREFIX)
 app.include_router(metrics.router, prefix=settings.API_PREFIX)
 app.include_router(chat.router, prefix=settings.API_PREFIX)
 app.include_router(genie.router, prefix=settings.API_PREFIX)
-app.include_router(explore.router, prefix=settings.API_PREFIX)
+# NOTE: explore endpoints defined below in this file, not as separate router
 
 
 # ============================================================================
@@ -411,6 +412,10 @@ if os.path.exists(frontend_dist):
         # Exclude static assets (already mounted separately)
         if full_path.startswith("assets/"):
             raise HTTPException(status_code=404, detail="Asset not found")
+
+        # Exclude PDF worker and other JS files
+        if full_path.endswith(".mjs") or full_path.endswith(".js"):
+            raise HTTPException(status_code=404, detail="File not found")
 
         # Exclude health/debug endpoints
         if full_path in ["health", "docs", "redoc", "openapi.json"]:
