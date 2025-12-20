@@ -4,8 +4,6 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Dashboard } from '@/pages/Dashboard';
 import { Chat } from '@/pages/Chat';
 import { Explore } from '@/pages/Explore';
-import { Insights } from '@/pages/Insights';
-import { Home } from '@/pages/Home';
 
 // Create React Query client with optimized defaults for perceived performance
 const queryClient = new QueryClient({
@@ -31,10 +29,9 @@ function App() {
         <AppLayout>
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/explore" element={<Explore />} />
-            <Route path="/insights" element={<Insights />} />
-            <Route path="/settings" element={<Home />} />
           </Routes>
         </AppLayout>
       </BrowserRouter>

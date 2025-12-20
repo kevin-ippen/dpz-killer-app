@@ -26,7 +26,7 @@ from fastapi.responses import FileResponse
 from datetime import datetime
 
 # Import backend modules
-from app.api.routes import items, metrics, chat as chat_api, genie
+from app.api.routes import metrics, chat as chat_api, genie
 from app.models.schemas import HealthResponse
 from app.core.config import settings
 
@@ -57,7 +57,6 @@ app.add_middleware(
 # ============================================================================
 
 # Include API routers under /api prefix
-app.include_router(items.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
 app.include_router(chat_api.router, prefix="/api")
 app.include_router(genie.router, prefix="/api")
