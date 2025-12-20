@@ -193,6 +193,15 @@ if os.path.exists(frontend_dist):
         index_path = os.path.join(frontend_dist, "index.html")
         return FileResponse(index_path)
 
+    # Serve PDF worker file
+    @app.get("/pdf.worker.min.mjs")
+    async def serve_pdf_worker():
+        """Serve PDF.js worker file for react-pdf"""
+        worker_path = os.path.join(frontend_dist, "pdf.worker.min.mjs")
+        if os.path.exists(worker_path):
+            return FileResponse(worker_path, media_type="application/javascript")
+        raise HTTPException(status_code=404, detail="PDF worker not found")
+
     # Serve specific SPA routes (NO CATCH-ALL to avoid shadowing API)
     @app.get("/chat")
     @app.get("/dashboard")
