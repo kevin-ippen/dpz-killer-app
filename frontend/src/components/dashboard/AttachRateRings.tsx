@@ -37,6 +37,23 @@ export function AttachRateRings({ data, isLoading }: AttachRateRingsProps) {
     );
   }
 
+  // Handle empty or invalid data
+  if (!data || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Pizza className="h-4 w-4" />
+            Product Attach Rates
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-gray-500 text-sm">No attach rate data available</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const formatCurrency = (value: number) => {
     if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
     if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;

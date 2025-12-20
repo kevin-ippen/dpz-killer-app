@@ -9,6 +9,8 @@ import { OrderHeatmap } from "@/components/dashboard/OrderHeatmap";
 import { CACEfficiencyGauge } from "@/components/dashboard/CACEfficiencyGauge";
 import { AttachRateRings } from "@/components/dashboard/AttachRateRings";
 import { CohortRetentionMatrix } from "@/components/dashboard/CohortRetentionMatrix";
+import { CustomerJourneyFunnel } from "@/components/dashboard/CustomerJourneyFunnel";
+import { RevenueWaterfallChart } from "@/components/dashboard/RevenueWaterfallChart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -581,6 +583,17 @@ export function Dashboard() {
             />
           </div>
 
+          {/* Customer Journey Funnel */}
+          <CustomerJourneyFunnel
+            data={[
+              { stage: "Website Visitors", value: 125000, color: "#3B82F6" },
+              { stage: "Added to Cart", value: 45000, color: "#10B981" },
+              { stage: "Started Checkout", value: 32000, color: "#F59E0B" },
+              { stage: "Completed Order", value: 28500, color: "#8B5CF6" },
+            ]}
+            isLoading={false}
+          />
+
           {/* Order Heatmap */}
           <div className="grid gap-6">
             <OrderHeatmap data={hourlyHeatmap || []} isLoading={heatmapLoading} />
@@ -589,6 +602,19 @@ export function Dashboard() {
 
         {/* Sales Analysis Tab */}
         <TabsContent value="sales" className="space-y-6">
+          {/* Revenue Waterfall */}
+          <RevenueWaterfallChart
+            data={[
+              { label: "Previous Month", value: 850000, isPositive: true },
+              { label: "New Orders", value: 125000, isPositive: true },
+              { label: "Discounts", value: -35000, isPositive: false },
+              { label: "Refunds", value: -12000, isPositive: false },
+              { label: "Upsells", value: 72000, isPositive: true },
+              { label: "Current Month", value: 1000000, isPositive: true },
+            ]}
+            isLoading={false}
+          />
+
           <Card>
             <CardHeader>
               <CardTitle>Sales Analysis</CardTitle>
@@ -661,7 +687,9 @@ export function Dashboard() {
         {/* Marketing Tab */}
         <TabsContent value="marketing" className="space-y-6">
           {/* CAC Efficiency Gauge */}
-          <CACEfficiencyGauge data={cacByChannel || []} isLoading={cacLoading} />
+          {cacByChannel && cacByChannel.length > 0 && (
+            <CACEfficiencyGauge data={cacByChannel} isLoading={cacLoading} />
+          )}
 
           <Card>
             <CardHeader>
@@ -729,7 +757,9 @@ export function Dashboard() {
           </Card>
 
           {/* Attach Rate Rings */}
-          <AttachRateRings data={attachRateDetailed || []} isLoading={attachDetailedLoading} />
+          {attachRateDetailed && attachRateDetailed.length > 0 && (
+            <AttachRateRings data={attachRateDetailed} isLoading={attachDetailedLoading} />
+          )}
 
           {/* Attach Rates - Legacy */}
           <Card>
