@@ -72,9 +72,12 @@ export function AttachRateRings({ data, isLoading }: AttachRateRingsProps) {
       <CardContent>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
           {data.map((item) => {
-            const isPositive = (item.trend || 0) >= 0;
+            const rate = Number(item.rate) || 0;
+            const revenue = Number(item.revenue) || 0;
+            const trend = Number(item.trend) || 0;
+            const isPositive = trend >= 0;
             const circumference = 2 * Math.PI * 35;
-            const dashArray = (item.rate / 100) * circumference;
+            const dashArray = (rate / 100) * circumference;
 
             return (
               <div key={item.product} className="flex items-center gap-3">
@@ -110,7 +113,7 @@ export function AttachRateRings({ data, isLoading }: AttachRateRingsProps) {
                       dominantBaseline="middle"
                       className="text-base font-semibold fill-gray-900"
                     >
-                      {item.rate}%
+                      {rate}%
                     </text>
                   </svg>
                 </div>
@@ -119,9 +122,9 @@ export function AttachRateRings({ data, isLoading }: AttachRateRingsProps) {
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm truncate">{item.product}</div>
                   <div className="text-xs text-gray-500">
-                    {formatCurrency(item.revenue)} revenue
+                    {formatCurrency(revenue)} revenue
                   </div>
-                  {item.trend !== undefined && (
+                  {trend !== 0 && (
                     <div
                       className="flex items-center gap-1 text-xs font-medium mt-1"
                       style={{ color: isPositive ? '#10B981' : '#EF4444' }}
@@ -131,7 +134,7 @@ export function AttachRateRings({ data, isLoading }: AttachRateRingsProps) {
                       ) : (
                         <TrendingDown className="h-3 w-3" />
                       )}
-                      {isPositive ? '+' : ''}{item.trend.toFixed(1)}%
+                      {isPositive ? '+' : ''}{trend.toFixed(1)}%
                     </div>
                   )}
                 </div>

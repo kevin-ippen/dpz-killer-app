@@ -704,17 +704,17 @@ export function Dashboard() {
         <TabsContent value="marketing" className="space-y-6">
           {/* Error Display */}
           {(cacError || attachDetailedError || cohortError) && (
-            <Card className="border-red-500 bg-red-50">
-              <CardContent className="pt-6">
-                <div className="text-red-800 text-sm">
-                  <strong>Error loading marketing data:</strong>
-                  {cacError && <div>- CAC data failed to load</div>}
-                  {attachDetailedError && <div>- Attach rate data failed to load</div>}
-                  {cohortError && <div>- Cohort data failed to load</div>}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+              <Card className="border-red-500 bg-red-50">
+                <CardContent className="pt-6">
+                  <div className="text-red-800 text-sm">
+                    <strong>Error loading marketing data:</strong>
+                    {cacError && <div>- CAC data failed to load</div>}
+                    {attachDetailedError && <div>- Attach rate data failed to load</div>}
+                    {cohortError && <div>- Cohort data failed to load</div>}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
           {/* CAC Efficiency Gauge */}
           {cacByChannel && cacByChannel.length > 0 && !cacError && (

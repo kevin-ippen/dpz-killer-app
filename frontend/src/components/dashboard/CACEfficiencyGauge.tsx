@@ -54,13 +54,15 @@ export function CACEfficiencyGauge({ data, isLoading }: CACEfficiencyGaugeProps)
     );
   }
 
-  // Sort by CAC (ascending)
-  const sortedData = [...data].sort((a, b) => a.cac - b.cac);
+  // Sort by CAC (ascending) - convert to numbers
+  const sortedData = [...data].sort((a, b) => Number(a.cac) - Number(b.cac));
 
-  // Set default benchmarks based on industry standards if not provided
+  // Set default benchmarks based on industry standards if not provided, convert CAC to number
   const dataWithBenchmarks = sortedData.map(item => ({
     ...item,
-    benchmark: item.benchmark || getBenchmark(item.channel),
+    cac: Number(item.cac) || 0,
+    benchmark: Number(item.benchmark) || getBenchmark(item.channel),
+    new_customers: Number(item.new_customers) || 0,
   }));
 
   return (
