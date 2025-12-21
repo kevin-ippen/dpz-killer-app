@@ -19,6 +19,23 @@ interface CACEfficiencyGaugeProps {
 }
 
 export function CACEfficiencyGauge({ data, isLoading }: CACEfficiencyGaugeProps) {
+  // Guard against undefined/null data
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            CAC by Channel
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-gray-500 text-sm">No CAC data available</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (isLoading) {
     return (
       <Card>

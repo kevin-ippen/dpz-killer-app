@@ -18,6 +18,20 @@ interface RevenueWaterfallChartProps {
 }
 
 export function RevenueWaterfallChart({ data, isLoading }: RevenueWaterfallChartProps) {
+  // Guard against undefined/null data
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Revenue Waterfall</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-gray-500 text-sm">No waterfall data available</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (isLoading) {
     return (
       <Card>

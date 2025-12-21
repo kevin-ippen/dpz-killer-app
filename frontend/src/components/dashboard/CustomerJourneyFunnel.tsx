@@ -18,6 +18,23 @@ interface CustomerJourneyFunnelProps {
 }
 
 export function CustomerJourneyFunnel({ data, isLoading }: CustomerJourneyFunnelProps) {
+  // Guard against undefined/null data
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Customer Journey Funnel
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-gray-500 text-sm">No funnel data available</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (isLoading) {
     return (
       <Card>

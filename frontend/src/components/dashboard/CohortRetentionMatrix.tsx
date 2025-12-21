@@ -18,6 +18,23 @@ interface CohortRetentionMatrixProps {
 }
 
 export function CohortRetentionMatrix({ data, isLoading }: CohortRetentionMatrixProps) {
+  // Guard against undefined/null data
+  if (!data || !Array.isArray(data)) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            Cohort Retention
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-gray-500 text-sm">No cohort retention data available</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (isLoading) {
     return (
       <Card>
