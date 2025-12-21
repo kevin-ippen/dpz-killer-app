@@ -181,12 +181,33 @@ async def proxy_file(path: str = Query(..., description="Full path to file in Un
         raise HTTPException(status_code=400, detail=f"Invalid volume path: {path}")
 
     def download_file_sync(file_path):
-        """Synchronous file download"""
+        """Synchronous file download using REST API"""
         from databricks.sdk import WorkspaceClient
+        import requests
+
         w = WorkspaceClient()
         logger.info(f"Starting download: {file_path}")
-        with w.files.download(file_path) as response:
-            content = response.read()
+
+        # Get the workspace host and token
+        host = w.config.host
+        token = w.config.token
+
+        # Construct the Files API URL
+        # Remove leading slash if present for URL construction
+        clean_path = file_path.lstrip('/')
+        url = f"{host}/api/2.0/fs/files/{clean_path}"
+
+        logger.info(f"Downloading from URL: {url}")
+
+        # Download with timeout
+        response = requests.get(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30
+        )
+        response.raise_for_status()
+
+        content = response.content
         logger.info(f"Download complete: {file_path}, size: {len(content)} bytes")
         return content
 
@@ -196,7 +217,7 @@ async def proxy_file(path: str = Query(..., description="Full path to file in Un
         with ThreadPoolExecutor() as executor:
             content = await asyncio.wait_for(
                 loop.run_in_executor(executor, download_file_sync, path),
-                timeout=30.0  # 30 second timeout
+                timeout=45.0  # 45 second timeout for large PDFs
             )
 
         content_type = "application/octet-stream"
@@ -211,7 +232,7 @@ async def proxy_file(path: str = Query(..., description="Full path to file in Un
 
     except asyncio.TimeoutError:
         logger.error(f"File download timeout: {path}")
-        raise HTTPException(status_code=504, detail=f"File download timeout after 30s")
+        raise HTTPException(status_code=504, detail=f"File download timeout after 45s")
     except Exception as e:
         logger.error(f"Error fetching file: {path} - {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
