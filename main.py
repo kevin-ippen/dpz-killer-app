@@ -159,13 +159,27 @@ async def preview_table(catalog: str, schema: str, table: str):
 @app.get("/api/explore/files/proxy")
 async def proxy_file(path: str = Query(..., description="Full path to file in Unity Catalog volume")):
     """Proxy file requests from Unity Catalog volumes"""
-    try:
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+
+    def download_file_sync(file_path):
+        """Synchronous file download"""
         from databricks.sdk import WorkspaceClient
         w = WorkspaceClient()
-        logger.info(f"Fetching file from UC: {path}")
-
-        with w.files.download(path) as response:
+        logger.info(f"Starting download: {file_path}")
+        with w.files.download(file_path) as response:
             content = response.read()
+        logger.info(f"Download complete: {file_path}, size: {len(content)} bytes")
+        return content
+
+    try:
+        # Run blocking download in thread pool with timeout
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as executor:
+            content = await asyncio.wait_for(
+                loop.run_in_executor(executor, download_file_sync, path),
+                timeout=30.0  # 30 second timeout
+            )
 
         content_type = "application/octet-stream"
         if path.endswith(".pdf"):
@@ -176,9 +190,13 @@ async def proxy_file(path: str = Query(..., description="Full path to file in Un
             content_type = "image/jpeg"
 
         return Response(content=content, media_type=content_type)
+
+    except asyncio.TimeoutError:
+        logger.error(f"File download timeout: {path}")
+        raise HTTPException(status_code=504, detail=f"File download timeout after 30s")
     except Exception as e:
-        logger.error(f"Error fetching file: {path} - {e}")
-        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+        logger.error(f"Error fetching file: {path} - {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
 
 # Health check endpoints
 @app.get("/health")
