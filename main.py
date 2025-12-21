@@ -161,6 +161,24 @@ async def proxy_file(path: str = Query(..., description="Full path to file in Un
     """Proxy file requests from Unity Catalog volumes"""
     import asyncio
     from concurrent.futures import ThreadPoolExecutor
+    import re
+
+    # Extract volume path from full URL if provided
+    # Handles: https://adb-xxx.azuredatabricks.net/ajax-api/2.0/fs/files/Volumes/...
+    # Extracts: /Volumes/...
+    if path.startswith('http'):
+        # Extract /Volumes/... portion from URL
+        match = re.search(r'(/Volumes/[^?]+)', path)
+        if match:
+            volume_path = match.group(1)
+            logger.info(f"Extracted volume path from URL: {volume_path}")
+            path = volume_path
+        else:
+            raise HTTPException(status_code=400, detail=f"Could not extract volume path from URL: {path}")
+
+    # Ensure path starts with /Volumes/
+    if not path.startswith('/Volumes/'):
+        raise HTTPException(status_code=400, detail=f"Invalid volume path: {path}")
 
     def download_file_sync(file_path):
         """Synchronous file download"""
