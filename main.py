@@ -156,6 +156,30 @@ async def preview_table(catalog: str, schema: str, table: str):
         logger.error(f"Failed to preview table: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/explore/files/proxy")
+async def proxy_file(path: str = Query(..., description="Full path to file in Unity Catalog volume")):
+    """Proxy file requests from Unity Catalog volumes"""
+    try:
+        from databricks.sdk import WorkspaceClient
+        w = WorkspaceClient()
+        logger.info(f"Fetching file from UC: {path}")
+
+        with w.files.download(path) as response:
+            content = response.read()
+
+        content_type = "application/octet-stream"
+        if path.endswith(".pdf"):
+            content_type = "application/pdf"
+        elif path.endswith(".png"):
+            content_type = "image/png"
+        elif path.endswith((".jpg", ".jpeg")):
+            content_type = "image/jpeg"
+
+        return Response(content=content, media_type=content_type)
+    except Exception as e:
+        logger.error(f"Error fetching file: {path} - {e}")
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+
 # Health check endpoints
 @app.get("/health")
 async def health_check():
