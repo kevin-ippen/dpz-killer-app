@@ -337,8 +337,8 @@ async def get_cohort_retention(
         return results
 
     except Exception as e:
-        logger.error(f"Error fetching cohort retention: {e}", exc_info=True)
-        # Return empty array instead of raising error - table may not exist yet
+        logger.warning(f"Cohort retention query failed (table may not exist): {e}")
+        # Return empty array instead of crashing - frontend handles gracefully
         return []
 
 
