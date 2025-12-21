@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 backend_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backend')
 sys.path.insert(0, backend_path)
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from datetime import datetime
 
 # Import backend modules
