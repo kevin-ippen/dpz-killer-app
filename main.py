@@ -181,35 +181,44 @@ async def proxy_file(path: str = Query(..., description="Full path to file in Un
         raise HTTPException(status_code=400, detail=f"Invalid volume path: {path}")
 
     def download_file_sync(file_path):
-        """Synchronous file download using REST API"""
+        """Synchronous file download using SDK with chunked reading"""
         from databricks.sdk import WorkspaceClient
-        import requests
+        import io
 
         w = WorkspaceClient()
         logger.info(f"Starting download: {file_path}")
 
-        # Get the workspace host and token
-        host = w.config.host
-        token = w.config.token
+        try:
+            # Use SDK download - it handles auth automatically in Databricks Apps
+            download_response = w.files.download(file_path)
 
-        # Construct the Files API URL
-        # Remove leading slash if present for URL construction
-        clean_path = file_path.lstrip('/')
-        url = f"{host}/api/2.0/fs/files/{clean_path}"
+            # Read the response in chunks to avoid hanging on large files
+            buffer = io.BytesIO()
+            chunk_size = 8192  # 8KB chunks
+            total_size = 0
 
-        logger.info(f"Downloading from URL: {url}")
+            # The response should be an DownloadResponse with a read() method
+            while True:
+                chunk = download_response.contents.read(chunk_size)
+                if not chunk:
+                    break
+                buffer.write(chunk)
+                total_size += len(chunk)
+                if total_size % (1024 * 1024) == 0:  # Log every 1MB
+                    logger.info(f"Downloaded {total_size / (1024*1024):.1f}MB so far...")
 
-        # Download with timeout
-        response = requests.get(
-            url,
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=30
-        )
-        response.raise_for_status()
+            content = buffer.getvalue()
+            logger.info(f"Download complete: {file_path}, size: {len(content)} bytes")
+            return content
 
-        content = response.content
-        logger.info(f"Download complete: {file_path}, size: {len(content)} bytes")
-        return content
+        except Exception as e:
+            logger.error(f"SDK download failed: {e}")
+            # Fallback: try reading the whole thing at once
+            logger.info("Attempting single-read fallback...")
+            with w.files.download(file_path) as response:
+                content = response.contents.read()
+            logger.info(f"Fallback download complete: {file_path}, size: {len(content)} bytes")
+            return content
 
     try:
         # Run blocking download in thread pool with timeout
