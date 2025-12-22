@@ -342,10 +342,17 @@ I can help you analyze your business data across:
           if (citations.length > 0) {
             const filePaths = citations
               .filter(citation => citation.url && (citation.url.includes('.pdf') || citation.url.includes('/Volumes/')))
-              .map(citation => citation.url);
+              .map(citation => {
+                // Extract original path from proxy URL if it's a proxy URL
+                if (citation.url.includes('/api/explore/files/proxy?path=')) {
+                  const urlParams = new URLSearchParams(citation.url.split('?')[1]);
+                  return decodeURIComponent(urlParams.get('path') || citation.url);
+                }
+                return citation.url;
+              });
 
             if (filePaths.length > 0) {
-              console.log('[PREFETCH] Triggering background download for', filePaths.length, 'files');
+              console.log('[PREFETCH] Triggering background download for', filePaths.length, 'files:', filePaths);
               fileApi.prefetchFiles(filePaths)
                 .then(result => console.log('[PREFETCH] Queued successfully:', result))
                 .catch(err => console.warn('[PREFETCH] Failed to queue:', err));
