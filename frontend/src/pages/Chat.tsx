@@ -16,6 +16,7 @@ import { ChartPreview, TablePreview, ImagePreview } from "@/components/chat/Bloc
 import { CitationPreview } from "@/components/chat/CitationPreview";
 import { MarkdownRenderer } from "@/components/chat/MarkdownRenderer";
 import { parseMessageBlocks } from "@/utils/parseMessageBlocks";
+import { fileApi } from "@/api/client";
 
 export function Chat() {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -330,20 +331,36 @@ I can help you analyze your business data across:
       abortControllerRef.current = null;
 
       // Parse final content into blocks (extract tables, citations, etc.)
-      setMessages((prev) =>
-        prev.map((msg) => {
+      setMessages((prev) => {
+        const updatedMessages = prev.map((msg) => {
           if (msg.id !== assistantMessageId) return msg;
 
           // Parse content into structured blocks and citations
           const { blocks, citations } = parseMessageBlocks(msg.content, assistantMessageId);
+
+          // Prefetch PDF files from citations in the background
+          if (citations.length > 0) {
+            const filePaths = citations
+              .filter(citation => citation.url && (citation.url.includes('.pdf') || citation.url.includes('/Volumes/')))
+              .map(citation => citation.url);
+
+            if (filePaths.length > 0) {
+              console.log('[PREFETCH] Triggering background download for', filePaths.length, 'files');
+              fileApi.prefetchFiles(filePaths)
+                .then(result => console.log('[PREFETCH] Queued successfully:', result))
+                .catch(err => console.warn('[PREFETCH] Failed to queue:', err));
+            }
+          }
 
           return {
             ...msg,
             blocks: blocks.length > 0 ? blocks : msg.blocks,
             citations: citations.length > 0 ? citations : msg.citations,
           };
-        })
-      );
+        });
+
+        return updatedMessages;
+      });
     }
   };
 

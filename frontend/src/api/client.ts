@@ -133,6 +133,21 @@ export const chatApi = {
 };
 
 /**
+ * File API
+ *
+ * Endpoints for Unity Catalog file operations
+ */
+export const fileApi = {
+  /**
+   * Prefetch files in the background to cache them
+   */
+  prefetchFiles: async (paths: string[]): Promise<{ status: string; count: number }> => {
+    const response = await apiClient.post('/explore/files/prefetch', paths);
+    return response.data;
+  },
+};
+
+/**
  * Metrics API
  *
  * Endpoints for dashboard metrics and analytics
